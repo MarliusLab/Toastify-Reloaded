@@ -1,14 +1,14 @@
-# Implementation, release preparation and validation status
+# Implementation, releases and validation status
 
-## Releases prepared on 2026-11-03
+## Releases published on 2026-11-03
 
-| Platform | Prepared version/tag | Scope | Publication state |
+| Platform | Published version/tag | Scope | Publication state |
 |---|---|---|---|
-| Windows x64 / ARM64 | Stable `v1.3.6` | Legacy Windows updater-tag normalization; configuration preserved | Prepared; awaiting release workflow |
-| Linux x64 / ARM64 | Stable `v1.4.1-linux` | Clickable title/artist links, safe metadata/openers, regression and release gates | Prepared; awaiting release workflow |
-| macOS Intel / Apple Silicon | Prerelease `v1.5.0-macos-rc.2` | Same track links, corrected RC self-test, reliable DMG sizing and native startup gate | Prepared; awaiting release workflow |
+| Windows x64 / ARM64 | Stable `v1.3.6` | Legacy Windows updater-tag normalization; configuration preserved | Published; release workflow passed |
+| Linux x64 / ARM64 | Stable `v1.4.1-linux` | Clickable title/artist links, safe metadata/openers, regression and release gates | Published; release workflow passed |
+| macOS Intel / Apple Silicon | Prerelease `v1.5.0-macos-rc.2` | Same track links, corrected RC self-test, reliable DMG sizing and native startup gate | Published; release workflow passed |
 
-The release workflows must pass for the exact release commit before publication is considered verified. Versioned download links are targets until the corresponding release appears in [GitHub Releases](https://github.com/MarliusLab/Toastify-Reloaded/releases). The evidence recorded below belongs to the earlier implementation commit; it is not a claim that these three new tags have already passed CI or been published. Existing tags are preserved.
+All three release workflows passed for commit `fc11dfb30ebb0846ed41fea473c76adadb117804`. The new tags resolve to that tested commit; historical tags are preserved. All 14 release assets are present, including the three checksum files. The checksum manifests match GitHub's uploaded-file SHA-256 digests for all 11 packages. Earlier implementation evidence is retained below as history.
 
 Windows 1.3.6 contains updater maintenance. Title/artist track links are included in Linux 1.4.1 and macOS RC2. macOS remains a release candidate while the interactive acceptance work below is open. No Developer ID or notarization acceptance is established by the recorded ad-hoc CI signatures.
 
@@ -17,7 +17,7 @@ Windows 1.3.6 contains updater maintenance. Title/artist track links are include
 Audit date: **2026-11-03**. Starting point: the live `main` commit
 [`0af3713`](https://github.com/MarliusLab/Toastify-Reloaded/commit/0af3713144355cc33d5f7e41dd75f56567b44d37).
 This records the state before the implementation and release preparation.
-Existing tags and packages remain historical artifacts; the prepared releases
+Existing tags and packages remain historical artifacts; the published releases
 use new tags.
 
 ### What was actually on GitHub at the audit baseline
@@ -131,7 +131,7 @@ macOS, before promotion toward stable:
   otherwise uses ad-hoc signatures; ad-hoc CI validation does not establish
   Gatekeeper acceptance of a downloaded app.
 
-Publishing the prepared versions does not close these native acceptance gaps.
+Publishing these versions does not close these native acceptance gaps.
 Their results must be recorded before claiming those behaviors verified or
 promoting macOS to stable.
 
@@ -157,4 +157,15 @@ Implementation commit: `e4251bbfc52e7c03c6f79ac414c470ddd99f2c75`, [PR #1](https
 | [Linux Build](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41619269739) | 132 regression assertions; x64 publish; native headless self-test; 10-second Xvfb startup; desktop entry; x64 tar/DEB/AppImage and AppImage structure; ARM64 cross-build, ELF architecture and tar/DEB validation; artifact upload |
 | [macOS Build](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41619269418) | feature/parity checks; native headless self-test including osascript availability; 132 regression assertions; x64 and ARM64 publish; app bundles and ad-hoc signature verification; 10-second native ARM64 app startup; ZIP/DMG validation and SHA-256 checksums; artifact upload |
 
-The former RC1 self-test build blocker is resolved. The native macOS startup test ran on Apple Silicon; the Intel executable was built and inspected, not executed. Linux ARM64 was cross-built, not executed. These workflow artifacts predate the prepared release versions and do not establish their publication. The remaining interactive acceptance work above is still open.
+The former RC1 self-test build blocker is resolved. The native macOS startup test ran on Apple Silicon; the Intel executable was built and inspected, not executed. Linux ARM64 was cross-built, not executed. These workflow artifacts predate these release versions and do not establish their publication. The remaining interactive acceptance work above is still open.
+
+
+## Verified publication pipelines
+
+| Platform | Release | Successful pipeline | Published assets |
+|---|---|---|---|
+| Windows | [1.3.6](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.3.6) | [Windows Release](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41624335433) | x64/ARM64 installers and SHA256SUMS-Windows.txt |
+| Linux | [1.4.1](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.4.1-linux) | [Linux Release](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41624241687) | x64 AppImage, x64/ARM64 DEB and tar.gz, SHA256SUMS.txt |
+| macOS | [1.5.0 RC2](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.5.0-macos-rc.2) | [macOS Release](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41624322519) | Intel/Apple Silicon ZIP and DMG, SHA256SUMS-macOS.txt |
+
+Validation included 140 production version/parser/launcher assertions, 14 publication authorization/recovery tests, native platform build/self-test/startup gates and package validation. Windows 1.3.6 is the repository's global latest release. macOS RC2 is a prerelease; interactive Spotify, permission and distribution-signing acceptance gaps remain as listed above.

@@ -2,9 +2,9 @@
 
 ## Current release candidate
 
-**Prepared RC2:** `v1.5.0-macos-rc.2` — a prerelease, not the macOS stable release.
+**Current RC2:** `v1.5.0-macos-rc.2` — a prerelease, not the macOS stable release.
 
-[RC2 release page after publication](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.5.0-macos-rc.2). Until the release workflow has published it, use [GitHub Releases](https://github.com/MarliusLab/Toastify-Reloaded/releases) to inspect available packages. The existing `v1.5.0-macos-rc.1` tag remains unchanged.
+[RC2 release page](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.5.0-macos-rc.2). RC2 packages and checksums are available in [GitHub Releases](https://github.com/MarliusLab/Toastify-Reloaded/releases). The existing `v1.5.0-macos-rc.1` tag remains unchanged.
 
 The macOS port uses the same Avalonia UI and configuration model as Linux. Shared user-facing settings remain aligned, with macOS backends for Spotify, global shortcuts and login integration. Existing settings, themes, hotkeys and playback controls are preserved by RC2.
 
@@ -157,6 +157,6 @@ resolve confirmed blockers and approve stable promotion
 v1.5.0-macos
 ```
 
-The obsolete Preview 1 version assertion that blocked RC1 has been fixed. DMG packaging now reserves explicit space and verifies the resulting image. Successful native CI for the earlier implementation is recorded in [PLATFORM_STATUS.md](PLATFORM_STATUS.md); the prepared RC2 tag still needs its own release gates.
+The obsolete Preview 1 version assertion that blocked RC1 has been fixed. DMG packaging now reserves explicit space and verifies the resulting image. Successful native CI for the earlier implementation is recorded in [PLATFORM_STATUS.md](PLATFORM_STATUS.md); RC2 has also passed its native release gates. Interactive acceptance remains open.
 
 Before stable promotion, exercise signed-in Spotify metadata, title and artist clicks, transport controls, Automation and Accessibility permissions, global shortcuts, artwork/themes/timeline, scaling/multiple monitors, Spicetify/Lyrics repair and an actual updater transition on Intel and Apple Silicon. Earlier CI executed native startup on Apple Silicon and inspected the Intel build; that does not establish interactive or Intel runtime acceptance. These checks remain open until their results are recorded.

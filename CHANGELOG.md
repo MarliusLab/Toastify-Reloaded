@@ -1,8 +1,8 @@
 # Changelog
 
-The 2026-11-03 entries below describe releases prepared for publication. Availability is recorded in [GitHub Releases](https://github.com/MarliusLab/Toastify-Reloaded/releases); historical tags are preserved.
+The 2026-11-03 releases below are published in [GitHub Releases](https://github.com/MarliusLab/Toastify-Reloaded/releases); historical tags are preserved.
 
-## 1.5.0-macos-rc.2 - 2026-11-03 (prepared prerelease)
+## 1.5.0-macos-rc.2 - 2026-11-03 (prerelease)
 
 - Added clickable, keyboard accessible toast titles and artists opening the displayed track through a validated Spotify catalog identifier.
 - Added safe HTTPS and Spotify-activation fallbacks, bounded opener attempts and failure feedback. Missing or invalid identifiers do not become title searches or arbitrary external links.
@@ -12,7 +12,7 @@ The 2026-11-03 entries below describe releases prepared for publication. Availab
 - Preserved settings, themes, hotkeys, media controls and the architecture-aware updater.
 - Remains a release candidate. Real Spotify/permission/updater acceptance on Intel and Apple Silicon, and distribution signing/notarization acceptance, remain open; automated ad-hoc signature checks do not establish Gatekeeper acceptance.
 
-## 1.4.1-linux - 2026-11-03 (prepared stable patch)
+## 1.4.1-linux - 2026-11-03 (stable patch)
 
 - Added clickable, keyboard accessible title and artist links for the track displayed in each toast.
 - Captured validated `xesam:url` and `mpris:trackid` identifiers with the same metadata snapshot. Conflicting identifiers are rejected, empty fields are safely framed, and transient missing identifiers do not trigger duplicate track notifications.
@@ -21,7 +21,7 @@ The 2026-11-03 entries below describe releases prepared for publication. Availab
 - Added shared regression checks, native headless tests, isolated X11 startup checks and package validation to release gates.
 - Preserved configuration, themes, hotkeys, playback controls and desktop/autostart identifiers. Headless tests now use temporary settings rather than the user's configuration.
 
-## 1.3.6 - 2026-11-03 (prepared Windows stable patch)
+## 1.3.6 - 2026-11-03 (Windows stable patch)
 
 - Fixed normalization of legacy Windows tags such as `v.1.3.5`, allowing Windows update checks to compare them with executable versions correctly.
 - Added regression coverage for current/legacy tag spellings and version comparisons; retained filtering of Linux/macOS releases and architecture-specific installer selection.

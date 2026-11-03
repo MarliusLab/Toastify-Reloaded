@@ -26,13 +26,13 @@ The project keeps the recognizable Toastify workflow and notification style whil
 
 > **Independent community project.** Toastify Reloaded is not affiliated with Spotify AB and is not an official release maintained by the original Toastify developers.
 
-| Platform | Prepared release | Channel |
+| Platform | Current release | Channel |
 |---|---|---|
 | Windows | `v1.3.6` | Stable |
 | Linux | `v1.4.1-linux` | Stable |
 | macOS | `v1.5.0-macos-rc.2` | Release candidate; not stable |
 
-These releases are prepared for publication. The versioned links below become available after their release checks pass. Use [GitHub Releases](https://github.com/MarliusLab/Toastify-Reloaded/releases) for packages already published. Existing tags are preserved.
+These releases are published in [GitHub Releases](https://github.com/MarliusLab/Toastify-Reloaded/releases), with platform packages, release notes and SHA-256 checksums. Windows and Linux are stable; macOS RC2 remains a prerelease. Existing tags are preserved.
 
 
 ---
@@ -41,18 +41,20 @@ These releases are prepared for publication. The versioned links below become av
 
 ### Windows — stable 1.3.6
 
-[Windows v1.3.6 release page after publication](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.3.6)
+[Windows v1.3.6 release page](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.3.6)
 
 Windows installer packages:
 
 - **Windows x64** — `ToastifyReloaded-Setup-win-x64.exe`
 - **Windows ARM64** — `ToastifyReloaded-Setup-win-arm64.exe`
 
+Windows checksums: `SHA256SUMS-Windows.txt`.
+
 Version 1.3.6 fixes recognition of legacy Windows tags such as `v.1.3.5` during update checks. Existing settings and the installer upgrade path are preserved.
 
 ### Linux — stable 1.4.1
 
-[Linux v1.4.1 release page after publication](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.4.1-linux)
+[Linux v1.4.1 release page](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.4.1-linux)
 
 The Linux stable line retains the Windows v1.3.4 feature baseline through native Linux backends. Version 1.4.1 adds clickable toast titles and artists that open the displayed track in Spotify.
 
@@ -81,7 +83,7 @@ Both architectures are built automatically through GitHub Actions. The x64 pipel
 
 ### macOS — 1.5.0 RC2
 
-[macOS RC2 release page after publication](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.5.0-macos-rc.2)
+[macOS RC2 release page](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.5.0-macos-rc.2)
 
 - **Apple Silicon:** `ToastifyReloaded-macOS-arm64.dmg` or `ToastifyReloaded-macOS-arm64.zip`
 - **Intel:** `ToastifyReloaded-macOS-x64.dmg` or `ToastifyReloaded-macOS-x64.zip`
@@ -1086,13 +1088,13 @@ Windows 1.3.6 contains updater fixes; it does not include the Linux/macOS track 
 
 | Platform | Status | Distribution |
 |---|---|---|
-| Windows x64 | Stable 1.3.6 release prepared | Installer |
-| Windows ARM64 | Stable 1.3.6 release prepared | Installer |
-| Linux x64 | Stable 1.4.1 release prepared | AppImage / `.deb` / tar.gz |
-| Linux ARM64 | Stable 1.4.1 release prepared; cross-built | `.deb` / tar.gz |
-| macOS x64 / Apple Silicon | 1.5.0 RC2 release prepared; stable acceptance pending | ZIP / DMG |
+| Windows x64 | Stable 1.3.6 release available | Installer |
+| Windows ARM64 | Stable 1.3.6 release available | Installer |
+| Linux x64 | Stable 1.4.1 release available | AppImage / `.deb` / tar.gz |
+| Linux ARM64 | Stable 1.4.1 release available; cross-built | `.deb` / tar.gz |
+| macOS x64 / Apple Silicon | 1.5.0 RC2 release available; stable acceptance pending | ZIP / DMG |
 
-Prepared tags: **`v1.3.6`**, **`v1.4.1-linux`**, **`v1.5.0-macos-rc.2`**.
+Release tags: **`v1.3.6`**, **`v1.4.1-linux`**, **`v1.5.0-macos-rc.2`**.
 
 ---
 
