@@ -28,7 +28,7 @@ The project keeps the recognizable Toastify workflow and notification style whil
 
 | Platform | Current release | Channel |
 |---|---|---|
-| Windows | `v1.3.6` | Stable |
+| Windows | `v1.3.7` | Stable |
 | Linux | `v1.4.1-linux` | Stable |
 | macOS | `v1.5.0-macos-rc.2` | Release candidate; not stable |
 
@@ -39,9 +39,9 @@ These releases are published in [GitHub Releases](https://github.com/MarliusLab/
 
 ## Download
 
-### Windows — stable 1.3.6
+### Windows — stable 1.3.7
 
-[Windows v1.3.6 release page](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.3.6)
+[Windows v1.3.7 release page](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.3.7)
 
 Windows installer packages:
 
@@ -50,7 +50,9 @@ Windows installer packages:
 
 Windows checksums: `SHA256SUMS-Windows.txt`.
 
-Version 1.3.6 fixes recognition of legacy Windows tags such as `v.1.3.5` during update checks. Existing settings and the installer upgrade path are preserved.
+Version 1.3.7 fixes Spotify/Spicetify version discovery and stalled updates. Downloads show bytes and percentage with cancellation and bounded waits; installation uses the native installer progress bar. Existing settings and the earlier legacy-tag update fix are preserved.
+
+If a running 1.3.5/1.3.6 is already stuck updating, choose **Exit** from the Toastify tray menu and run the new installer manually once. See [Windows maintenance and progress](docs/WINDOWS_MAINTENANCE.md).
 
 ### Linux — stable 1.4.1
 
@@ -1088,13 +1090,13 @@ Windows 1.3.6 contains updater fixes; it does not include the Linux/macOS track 
 
 | Platform | Status | Distribution |
 |---|---|---|
-| Windows x64 | Stable 1.3.6 release available | Installer |
-| Windows ARM64 | Stable 1.3.6 release available | Installer |
+| Windows x64 | Stable 1.3.7 release available | Installer |
+| Windows ARM64 | Stable 1.3.7 release available | Installer |
 | Linux x64 | Stable 1.4.1 release available | AppImage / `.deb` / tar.gz |
 | Linux ARM64 | Stable 1.4.1 release available; cross-built | `.deb` / tar.gz |
 | macOS x64 / Apple Silicon | 1.5.0 RC2 release available; stable acceptance pending | ZIP / DMG |
 
-Release tags: **`v1.3.6`**, **`v1.4.1-linux`**, **`v1.5.0-macos-rc.2`**.
+Release tags: **`v1.3.7`**, **`v1.4.1-linux`**, **`v1.5.0-macos-rc.2`**.
 
 ---
 

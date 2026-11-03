@@ -1,13 +1,13 @@
 # Windows 1.3.7 maintenance update
 
-Release status: **prepared stable patch**, target tag **`v1.3.7`**. Publication is verified only when the release workflow succeeds and the packages appear in [GitHub Releases](https://github.com/MarliusLab/Toastify-Reloaded/releases).
+Release status: **published stable patch**, tag **[`v1.3.7`](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.3.7)**. Both installers and their checksum manifest are available.
 
 ## One-time upgrade from a running 1.3.5 or 1.3.6 build
 
 The fixes below run inside 1.3.7. An older running program continues using its older downloader and cannot acquire the new progress/timeout behavior until it is replaced.
 
-1. Right-click the Toastify Reloaded system-tray icon and choose **Exit**. Closing Settings with its X button only hides it.
-2. After publication, open the [Windows v1.3.7 release](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.3.7) and download the installer matching the device: `ToastifyReloaded-Setup-win-x64.exe` or `ToastifyReloaded-Setup-win-arm64.exe`.
+1. Right-click the Toastify Reloaded system-tray icon and choose **Exit**. Closing Settings with its X button only hides it. If the old application does not respond, end only ToastifyReloaded.exe in Task Manager before running the installer.
+2. Open the [Windows v1.3.7 release](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.3.7) and download the installer matching the device: `ToastifyReloaded-Setup-win-x64.exe` or `ToastifyReloaded-Setup-win-arm64.exe`.
 3. Run that installer manually and confirm the normal Windows permission request. Let its installation progress finish, then start Toastify Reloaded 1.3.7.
 4. Open **Reloaded** and check the displayed application, Spotify and Spicetify versions. Subsequent update downloads use the new progress and cancellation behavior.
 
@@ -63,3 +63,9 @@ For an in-app update, the installer validates the supplied process ID and waits 
 Updater tests use synthetic HTTP responses and a simulated installer launcher. Repair-flow tests use injected executables, stop and restart callbacks; they do not repair, stop or restart the user's Spotify. Subprocess tests execute only synthetic output/sleep helpers. The rendered download preview uses simulated transfer data and is not evidence of an actual installation in progress.
 
 No actual installer or Windows elevation prompt was launched during local tests. A successful build, installer compilation and these regression checks do not establish an end-to-end elevated upgrade on a real installed x64/ARM64 system. Release workflow results and published asset checks must be recorded separately for the exact release commit.
+
+## Verified publication
+
+[Windows release workflow 41629987353](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41629987353) passed for commit `689f4f7e6c79e3d3b42fbd940dc7049d98f94762`. Both x64 and ARM64 installers and SHA256SUMS-Windows.txt are published; their uploaded digests match the public checksum manifest.
+
+A real 51,746,692-byte download of the published Windows 1.3.6 installer also completed through the new downloader in about 232 seconds, with 1,270 progress reports and a simulated handoff. No installer or elevation prompt was launched. The user's settings file remained identical to its distinct pre-test backup.

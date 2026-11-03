@@ -1,6 +1,6 @@
 # Changelog
 
-Published releases are listed in [GitHub Releases](https://github.com/MarliusLab/Toastify-Reloaded/releases). Entries marked prepared await publication; historical tags are preserved.
+Published releases are listed in [GitHub Releases](https://github.com/MarliusLab/Toastify-Reloaded/releases). Historical tags are preserved.
 
 ## 1.5.0-macos-rc.2 - 2026-11-03 (prerelease)
 
@@ -21,7 +21,7 @@ Published releases are listed in [GitHub Releases](https://github.com/MarliusLab
 - Added shared regression checks, native headless tests, isolated X11 startup checks and package validation to release gates.
 - Preserved configuration, themes, hotkeys, playback controls and desktop/autostart identifiers. Headless tests now use temporary settings rather than the user's configuration.
 
-## 1.3.7 - 2026-11-03 (prepared Windows stable patch)
+## 1.3.7 - 2026-11-03 (Windows stable patch)
 
 - Fixed startup ordering so Spotify and Spicetify versions are discovered before automatic update downloads. Both fields complete independently; media startup/polling and the minimized-start preference are preserved during maintenance.
 - Moved version discovery off the UI thread with bounded waits and cancellation. Added desktop/registered/Scoop Spotify paths and Microsoft Store package metadata; Spicetify discovery refreshes user/machine PATH and checks known installer/package-manager locations.

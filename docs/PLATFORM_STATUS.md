@@ -4,13 +4,13 @@
 
 | Platform | Published version/tag | Scope | Publication state |
 |---|---|---|---|
-| Windows x64 / ARM64 | Stable `v1.3.6` | Legacy Windows updater-tag normalization; configuration preserved | Published; release workflow passed |
+| Windows x64 / ARM64 | Stable `v1.3.7` | Version detection, bounded downloads, progress and installer handoff; configuration preserved | Published; release workflow passed |
 | Linux x64 / ARM64 | Stable `v1.4.1-linux` | Clickable title/artist links, safe metadata/openers, regression and release gates | Published; release workflow passed |
 | macOS Intel / Apple Silicon | Prerelease `v1.5.0-macos-rc.2` | Same track links, corrected RC self-test, reliable DMG sizing and native startup gate | Published; release workflow passed |
 
-All three release workflows passed for commit `fc11dfb30ebb0846ed41fea473c76adadb117804`. The new tags resolve to that tested commit; historical tags are preserved. All 14 release assets are present, including the three checksum files. The checksum manifests match GitHub's uploaded-file SHA-256 digests for all 11 packages. Earlier implementation evidence is retained below as history.
+Windows 1.3.7 passed its release workflow for commit `689f4f7e6c79e3d3b42fbd940dc7049d98f94762`. Linux 1.4.1 and macOS RC2 remain at their tested commit `fc11dfb30ebb0846ed41fea473c76adadb117804`, with their original assets unchanged. Existing tags are preserved. The current platform downloads include 14 assets and SHA-256 manifests for all 11 packages. Earlier implementation/publication evidence is retained below as history.
 
-Windows 1.3.6 contains updater maintenance. Title/artist track links are included in Linux 1.4.1 and macOS RC2. macOS remains a release candidate while the interactive acceptance work below is open. No Developer ID or notarization acceptance is established by the recorded ad-hoc CI signatures.
+Windows 1.3.7 contains version detection, progress and updater maintenance. Title/artist track links are included in Linux 1.4.1 and macOS RC2. macOS remains a release candidate while the interactive acceptance work below is open. No Developer ID or notarization acceptance is established by the recorded ad-hoc CI signatures.
 
 ## Historical audit baseline
 
@@ -168,4 +168,10 @@ The former RC1 self-test build blocker is resolved. The native macOS startup tes
 | Linux | [1.4.1](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.4.1-linux) | [Linux Release](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41624241687) | x64 AppImage, x64/ARM64 DEB and tar.gz, SHA256SUMS.txt |
 | macOS | [1.5.0 RC2](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.5.0-macos-rc.2) | [macOS Release](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41624322519) | Intel/Apple Silicon ZIP and DMG, SHA256SUMS-macOS.txt |
 
-Validation included 140 production version/parser/launcher assertions, 14 publication authorization/recovery tests, native platform build/self-test/startup gates and package validation. Windows 1.3.6 is the repository's global latest release. macOS RC2 is a prerelease; interactive Spotify, permission and distribution-signing acceptance gaps remain as listed above.
+Validation included 140 production version/parser/launcher assertions, 14 publication authorization/recovery tests, native platform build/self-test/startup gates and package validation. Windows 1.3.6 was the latest at that publication; Windows 1.3.7 is now the global latest release. macOS RC2 is a prerelease; interactive Spotify, permission and distribution-signing acceptance gaps remain as listed above.
+
+## Windows 1.3.7 maintenance validation
+
+[Published Windows 1.3.7](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.3.7) passed [release workflow 41629987353](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41629987353), including 76 Windows maintenance/UI checks, 140 shared assertions, 14 release guards and both architecture installers. A real download completed with visible byte/percentage reports and a simulated non-executing handoff. The x64/ARM64 installer digests match the published checksum manifest.
+
+See [Windows maintenance](WINDOWS_MAINTENANCE.md) for the one-time manual upgrade from a stuck older build, configuration preservation and test limits. No real elevated installation was performed on the development host.
