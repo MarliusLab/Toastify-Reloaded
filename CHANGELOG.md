@@ -2,6 +2,13 @@
 
 Published releases are listed in [GitHub Releases](https://github.com/MarliusLab/Toastify-Reloaded/releases). Historical tags are preserved.
 
+## 1.3.8 - prepared for Windows publication after CI
+
+- Connected normal clicks on the Windows toast, including title, artist and artwork, to Spotify activation. Minimized Spotify windows are restored; a closed app uses its registered protocol.
+- Preserved Ctrl+drag movement, themes, geometry, animation, timeline, settings and all 1.3.7 maintenance fixes. Added Enter/Space activation for focused text, localized failure feedback, retry, click serialization and close cancellation.
+- Added a validated URI/HTTPS opener path for trusted identifiers. Current Windows SMTC snapshots have no catalog URI, so they safely activate Spotify rather than claiming exact-track navigation; see [Windows toast behavior](docs/WINDOWS_TOAST.md).
+- Added Windows opener fixtures and actual WPF event regression checks to the existing build and release gates.
+
 ## 1.5.0-macos-rc.2 - 2026-11-03 (prerelease)
 
 - Added clickable, keyboard accessible toast titles and artists opening the displayed track through a validated Spotify catalog identifier.

@@ -65,7 +65,7 @@ jobs:
         if: steps.prepare.outputs.publish == 'true'
         run: dotnet run --project tests/ToastifyReloaded.TrackLink.Tests -c Release
 
-      - name: Test Windows detection, updater and installer handshake
+      - name: Test Windows toast activation, detection, updater and installer handshake
         if: steps.prepare.outputs.publish == 'true'
         run: dotnet run --project tests/ToastifyReloaded.Windows.Tests -c Release
 
