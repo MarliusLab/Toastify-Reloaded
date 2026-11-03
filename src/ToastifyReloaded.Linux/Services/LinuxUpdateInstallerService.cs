@@ -22,7 +22,7 @@ public sealed class LinuxUpdateInstallerService
         _http.DefaultRequestHeaders.UserAgent.Add(
             new ProductInfoHeaderValue(
                 "ToastifyReloaded",
-                "1.4.0"));
+                "1.4.1"));
     }
 
     public async Task<LinuxUpdateApplyResult> DownloadAndApplyAsync(

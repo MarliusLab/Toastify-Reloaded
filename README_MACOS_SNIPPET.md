@@ -1,9 +1,10 @@
-### macOS — RC1 source, stable validation pending
+### macOS — RC2, stable validation pending
 
-The version configured in source is `v1.5.0-macos-rc.1`. The repository already
-contains this tag; the changes in this branch do not move tags or publish a
-release. Package names below describe the packaging output, not a claim that
-RC1 downloads have passed all validation.
+The version configured in source is `v1.5.0-macos-rc.2`, retaining numeric app
+version `1.5.0`. RC2 includes clickable track links, the obsolete Preview 1
+self-test fix and the DMG packaging fix. The existing RC1 tag remains unchanged.
+Package names below describe the packaging output; release publication and
+automated checks do not replace the live Mac checks required before stable.
 
 **Apple Silicon (arm64)**
 

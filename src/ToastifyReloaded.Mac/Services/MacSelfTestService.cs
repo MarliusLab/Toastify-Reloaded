@@ -45,6 +45,7 @@ public static class MacSelfTestService
             var preview1 = MacUpdateService.ParseTag("v1.5.0-macos-preview.1");
             var preview2 = MacUpdateService.ParseTag("v1.5.0-macos-preview.2");
             var rc1 = MacUpdateService.ParseTag("v1.5.0-macos-rc.1");
+            var rc2 = MacUpdateService.ParseTag("v1.5.0-macos-rc.2");
             var stable = MacUpdateService.ParseTag("v1.5.0-macos");
             var nextPreview = MacUpdateService.ParseTag("v1.5.1-macos-preview.1");
             var nextStable = MacUpdateService.ParseTag("v1.5.1-macos");
@@ -53,8 +54,20 @@ public static class MacSelfTestService
                 "preview versions sort correctly");
             Check(preview2 is not null && rc1 is not null && preview2.CompareTo(rc1) < 0,
                 "preview sorts before RC");
+            Check(rc1 is not null && rc2 is not null && rc1.CompareTo(rc2) < 0 &&
+                  MacUpdateService.IsEligibleUpdateCandidate(rc1, rc2),
+                "RC1 advances to RC2 without changing the numeric version");
             Check(rc1 is not null && stable is not null && rc1.CompareTo(stable) < 0,
                 "RC sorts before stable");
+            Check(rc2 is not null && stable is not null && rc2.CompareTo(stable) < 0 &&
+                  MacUpdateService.IsEligibleUpdateCandidate(rc2, stable) &&
+                  !MacUpdateService.IsEligibleUpdateCandidate(stable, rc2),
+                "RC2 may promote to stable while stable rejects RC2");
+            Check(rc2 is not null && preview1 is not null && stable is not null &&
+                  MacUpdateService.FormatDisplayVersion(rc2) == "macOS 1.5.0 RC2" &&
+                  MacUpdateService.FormatDisplayVersion(preview1) == "macOS 1.5.0 Preview 1" &&
+                  MacUpdateService.FormatDisplayVersion(stable) == "macOS 1.5.0",
+                "display version follows Preview, RC and stable channels");
             Check(stable is not null && nextStable is not null && stable.CompareTo(nextStable) < 0,
                 "semantic stable versions sort correctly");
             Check(stable is not null && nextPreview is not null &&
@@ -221,7 +234,7 @@ public static class MacSelfTestService
 
             var release = new MacUpdateInfo(
                 stable ?? throw new InvalidOperationException("stable test tag parse failed"),
-                new Uri("https://github.com/Marlius92/Toastify-Reloaded/releases/tag/v1.5.0-macos"),
+                new Uri("https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.5.0-macos"),
                 new MacUpdateAsset[]
                 {
                     new("ToastifyReloaded-macOS-arm64.zip", new Uri("https://example.invalid/arm64.zip"), 1, null),

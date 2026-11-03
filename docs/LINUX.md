@@ -1,7 +1,10 @@
 # Toastify Reloaded — Linux
 
-Stable version: **1.4.0**  
-Stable tag: **`v1.4.0-linux`**
+Stable version: **1.4.1**
+
+Stable tag: **`v1.4.1-linux`**
+
+[Download Linux v1.4.1](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.4.1-linux).
 
 The Linux port is intentionally isolated from the stable Windows/WPF application and uses Linux-native backends where Windows APIs do not exist.
 
@@ -15,13 +18,14 @@ The Linux port is intentionally isolated from the stable Windows/WPF application
 - Settings: `~/.config/toastify-reloaded/settings.json`
 - Autostart: `~/.config/autostart/io.github.Marlius92.ToastifyReloaded.desktop`
 
-## Linux 1.4.0 features
+## Linux 1.4.1 features
 
 - Play / Pause, Previous / Next
 - Seek ±10 seconds
 - Spotify volume and mute controls
 - Automatic MPRIS player detection/reconnection
 - Track-change toast
+- Clickable title/artist links opening the displayed track in Spotify
 - Adaptive and fixed toast geometry
 - Album artwork
 - Toastify icon fallback
@@ -164,14 +168,14 @@ Package-aware application behavior:
 ```text
 ToastifyReloaded-Linux-x64.AppImage
 ToastifyReloaded-Linux-x64.tar.gz
-toastify-reloaded_1.4.0_amd64.deb
+toastify-reloaded_1.4.1_amd64.deb
 ```
 
 ### ARM64
 
 ```text
 ToastifyReloaded-Linux-arm64.tar.gz
-toastify-reloaded_1.4.0_arm64.deb
+toastify-reloaded_1.4.1_arm64.deb
 ```
 
 Checksums:
@@ -253,7 +257,7 @@ The normal Linux CI validates:
 The tag workflow for:
 
 ```text
-v1.4.0-linux
+v1.4.1-linux
 ```
 
 rebuilds all stable assets, generates `SHA256SUMS.txt` and publishes the GitHub Release only after the release package checks pass.
@@ -262,8 +266,10 @@ rebuilds all stable assets, generates `SHA256SUMS.txt` and publishes the GitHub 
 
 Functional parity does not mean identical OS implementation. Linux deliberately uses MPRIS, X11/Wayland shortcut backends and StatusNotifierItem/AppIndicator instead of Windows media/session APIs. Desktop-environment behavior can therefore differ in permission dialogs, tray availability and fullscreen detection.
 
-## Click to open the track (unreleased)
+## Click to open the track (1.4.1)
 
 Click the title or artist, or focus either link and press Enter/Space. Toastify uses the track identifier captured with the displayed metadata. It tries the Spotify URI through xdg-open, then the canonical Spotify web page if that handler reports failure. For missing identifiers, local files or ads, it raises Spotify through MPRIS when available, then tries the fixed spotify: application URI. An error is shown if no handler succeeds. Install xdg-utils for xdg-open; gdbus is an optional app-activation fallback. Existing settings need no migration.
+
+Version 1.4.1 preserves settings, themes, hotkeys and media controls from 1.4.0. The existing `v1.4.0-linux` tag remains unchanged. Metadata and opener regression tests run in CI, and the headless self-test uses temporary settings instead of writing the user's configuration.
 
 See [platform status](PLATFORM_STATUS.md) for automated evidence and remaining live desktop validation.

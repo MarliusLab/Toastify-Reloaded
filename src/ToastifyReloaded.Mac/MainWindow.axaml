@@ -324,7 +324,7 @@
           <GroupBox Grid.Row="1" Grid.Column="1" Header="Note macOS" Margin="10,0,0,10">
             <StackPanel Margin="12" Spacing="8">
               <TextBlock TextWrapping="Wrap"
-                         Text="Toastify Reloaded macOS 1.5.0 Preview 1: stessa interfaccia, impostazioni e funzioni della linea stabile, con backend macOS dedicati per Spotify, hotkey, autostart e aggiornamenti."/>
+                         Text="Stessa interfaccia, impostazioni e funzioni della linea stabile, con backend macOS dedicati per Spotify, hotkey, autostart e aggiornamenti."/>
             </StackPanel>
           </GroupBox>
         </Grid>
@@ -375,7 +375,7 @@
     </TabControl>
 
     <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
-      <TextBlock x:Name="FooterText" VerticalAlignment="Center" Opacity="0.7" Text="macOS 1.5.0 Preview 1"/>
+      <TextBlock x:Name="FooterText" VerticalAlignment="Center" Opacity="0.7" Text="macOS 1.5.0 RC2"/>
       <TextBlock Grid.Column="1"/>
       <Button Grid.Column="2" Content="Salva" Click="Save_Click" Padding="18,8"/>
       <Button Grid.Column="3" Content="Esci" Click="Exit_Click" Padding="18,8"/>

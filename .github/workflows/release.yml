@@ -7,36 +7,98 @@ on:
       - "!v*-linux*"
       - "!v*-macos*"
 
+  workflow_run:
+    workflows: ["build"]
+    types: [completed]
+    branches: [main]
+
 permissions:
   contents: write
 
+concurrency:
+  group: publish-windows
+  cancel-in-progress: false
+
 jobs:
   release:
+    if: >-
+      github.event_name == 'push' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+          persist-credentials: false
+
+      - name: Validate explicit release plan and trusted source commit
+        id: prepare
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/prepare-release.py windows
 
       - uses: actions/setup-dotnet@v5
+        if: steps.prepare.outputs.publish == 'true'
         with:
           dotnet-version: 8.0.x
 
+      - name: Verify Windows tag matches application version
+        if: steps.prepare.outputs.publish == 'true'
+        shell: pwsh
+        run: |
+          [xml]$project = Get-Content src/ToastifyReloaded/ToastifyReloaded.csproj -Raw
+          $version = $project.SelectSingleNode('/Project/PropertyGroup/Version').InnerText.Trim()
+          if ($env:RELEASE_TAG -notin @("v$version", "v.$version")) {
+            throw "Windows tag does not match application version $version"
+          }
+          Write-Host "PASS: Windows tag matches application version $version"
+
       - name: Install NSIS
+        if: steps.prepare.outputs.publish == 'true'
         shell: pwsh
         run: choco install nsis -y --no-progress
 
+      - name: Test release versions and Spotify track links
+        if: steps.prepare.outputs.publish == 'true'
+        run: dotnet run --project tests/ToastifyReloaded.TrackLink.Tests -c Release
+
       - name: Build x64 installer
+        if: steps.prepare.outputs.publish == 'true'
         shell: pwsh
         run: .\scripts\build-installer.ps1 -Runtime win-x64
 
       - name: Build ARM64 installer
+        if: steps.prepare.outputs.publish == 'true'
         shell: pwsh
         run: .\scripts\build-installer.ps1 -Runtime win-arm64
 
+      - name: Generate Windows SHA-256 checksums
+        if: steps.prepare.outputs.publish == 'true'
+        shell: pwsh
+        run: |
+          $names = @('ToastifyReloaded-Setup-win-x64.exe', 'ToastifyReloaded-Setup-win-arm64.exe')
+          $lines = foreach ($name in $names) {
+            $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path dist $name)).Hash.ToLowerInvariant()
+            "$hash  $name"
+          }
+          [IO.File]::WriteAllLines((Join-Path (Get-Location) 'dist/SHA256SUMS-Windows.txt'), $lines, [Text.UTF8Encoding]::new($false))
+
       - name: Create GitHub Release
+        if: steps.prepare.outputs.publish == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          name: Toastify Reloaded ${{ github.ref_name }}
-          generate_release_notes: true
+          tag_name: ${{ steps.prepare.outputs.release_tag }}
+          target_commitish: ${{ steps.prepare.outputs.release_sha }}
+          name: Toastify Reloaded ${{ steps.prepare.outputs.release_tag }}
+          body_path: ${{ steps.prepare.outputs.notes_path }}
+          generate_release_notes: false
+          make_latest: true
+          prerelease: false
+          fail_on_unmatched_files: true
           files: |
             dist/ToastifyReloaded-Setup-win-x64.exe
             dist/ToastifyReloaded-Setup-win-arm64.exe
+            dist/SHA256SUMS-Windows.txt

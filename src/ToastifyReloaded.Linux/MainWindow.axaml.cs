@@ -204,7 +204,7 @@ public partial class MainWindow : Window
         var track = await _playerctl.GetTrackAsync()
             ?? new LinuxTrackInfo(
                 "Toastify Reloaded Linux",
-                "Linux 1.4.0",
+                "Linux 1.4.1",
                 "Classic Toastify experience",
                 string.Empty,
                 76,
@@ -488,7 +488,7 @@ public partial class MainWindow : Window
                 Environment.NewLine,
                 new[]
                 {
-                    "Toastify Reloaded Linux: 1.4.0",
+                    "Toastify Reloaded Linux: 1.4.1",
                     $"OS: {Environment.OSVersion}",
                     $"Architecture: {System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture}",
                     $"Session: {_hotkeys.SessionType}",

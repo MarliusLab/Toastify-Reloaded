@@ -1,11 +1,26 @@
-# Linux and macOS implementation and validation status
+# Implementation, release preparation and validation status
+
+## Releases prepared on 2026-11-03
+
+| Platform | Prepared version/tag | Scope | Publication state |
+|---|---|---|---|
+| Windows x64 / ARM64 | Stable `v1.3.6` | Legacy Windows updater-tag normalization; configuration preserved | Prepared; awaiting release workflow |
+| Linux x64 / ARM64 | Stable `v1.4.1-linux` | Clickable title/artist links, safe metadata/openers, regression and release gates | Prepared; awaiting release workflow |
+| macOS Intel / Apple Silicon | Prerelease `v1.5.0-macos-rc.2` | Same track links, corrected RC self-test, reliable DMG sizing and native startup gate | Prepared; awaiting release workflow |
+
+The release workflows must pass for the exact release commit before publication is considered verified. Versioned download links are targets until the corresponding release appears in [GitHub Releases](https://github.com/MarliusLab/Toastify-Reloaded/releases). The evidence recorded below belongs to the earlier implementation commit; it is not a claim that these three new tags have already passed CI or been published. Existing tags are preserved.
+
+Windows 1.3.6 contains updater maintenance. Title/artist track links are included in Linux 1.4.1 and macOS RC2. macOS remains a release candidate while the interactive acceptance work below is open. No Developer ID or notarization acceptance is established by the recorded ad-hoc CI signatures.
+
+## Historical audit baseline
 
 Audit date: **2026-11-03**. Starting point: the live `main` commit
 [`0af3713`](https://github.com/MarliusLab/Toastify-Reloaded/commit/0af3713144355cc33d5f7e41dd75f56567b44d37).
-This records implementation and available evidence separately. Existing tags
-and published releases are not changed by this work.
+This records the state before the implementation and release preparation.
+Existing tags and packages remain historical artifacts; the prepared releases
+use new tags.
 
-## What was actually on GitHub
+### What was actually on GitHub at the audit baseline
 
 | Platform | Recorded state | Evidence |
 |---|---|---|
@@ -30,8 +45,9 @@ passed an interactive test.
   they never become arbitrary external URLs or shell commands. If no
   fallback succeeds, the application reports the failure.
 - The macOS self-test accepts the actual parsed Preview/RC/stable channel
-  instead of requiring an obsolete Preview 1 tag. The existing RC1 tag and
-  version constants remain unchanged.
+  instead of requiring an obsolete Preview 1 tag. The original implementation
+  retained the RC1 version; release preparation advances the source to RC2
+  while preserving the existing RC1 tag.
 - Both platform build workflows run for shared link changes and regression
   tests. They continue to run on pull requests against `main`.
 - Linux release packaging now requires the shared regression harness,
@@ -115,10 +131,11 @@ macOS, before promotion toward stable:
   otherwise uses ad-hoc signatures; ad-hoc CI validation does not establish
   Gatekeeper acceptance of a downloaded app.
 
-No release or tag promotion is part of this change. Native acceptance gaps
-above remain open until their results are recorded.
+Publishing the prepared versions does not close these native acceptance gaps.
+Their results must be recorded before claiming those behaviors verified or
+promoting macOS to stable.
 
-## Checks executed on the development host
+## Historical checks executed on the development host
 
 On 2026-11-03, Windows x64 with .NET SDK 9.0.315 targeting .NET 8:
 
@@ -131,7 +148,7 @@ On 2026-11-03, Windows x64 with .NET SDK 9.0.315 targeting .NET 8:
 
 Native GitHub Actions results for the implementation commit are recorded below.
 
-## Native GitHub Actions results
+## Native GitHub Actions results for the implementation
 
 Implementation commit: `e4251bbfc52e7c03c6f79ac414c470ddd99f2c75`, [PR #1](https://github.com/MarliusLab/Toastify-Reloaded/pull/1). Both native workflows completed successfully on 2026-11-03.
 
@@ -140,4 +157,4 @@ Implementation commit: `e4251bbfc52e7c03c6f79ac414c470ddd99f2c75`, [PR #1](https
 | [Linux Build](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41619269739) | 132 regression assertions; x64 publish; native headless self-test; 10-second Xvfb startup; desktop entry; x64 tar/DEB/AppImage and AppImage structure; ARM64 cross-build, ELF architecture and tar/DEB validation; artifact upload |
 | [macOS Build](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41619269418) | feature/parity checks; native headless self-test including osascript availability; 132 regression assertions; x64 and ARM64 publish; app bundles and ad-hoc signature verification; 10-second native ARM64 app startup; ZIP/DMG validation and SHA-256 checksums; artifact upload |
 
-The former RC1 self-test build blocker is resolved. The native macOS startup test ran on Apple Silicon; the Intel executable was built and inspected, not executed. Linux ARM64 was cross-built, not executed. These workflow artifacts are development packages, not a published release. The remaining interactive acceptance work above is still open.
+The former RC1 self-test build blocker is resolved. The native macOS startup test ran on Apple Silicon; the Intel executable was built and inspected, not executed. Linux ARM64 was cross-built, not executed. These workflow artifacts predate the prepared release versions and do not establish their publication. The remaining interactive acceptance work above is still open.
