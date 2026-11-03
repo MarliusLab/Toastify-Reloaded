@@ -36,6 +36,9 @@ jobs:
       - name: Build and run native macOS self-test
         run: ./scripts/test-macos-ci.sh
 
+      - name: Test track links and safe launcher fallbacks
+        run: dotnet run --project tests/ToastifyReloaded.TrackLink.Tests -c Release
+
       - name: Publish Intel and Apple Silicon
         run: |
           ./scripts/build-macos.sh osx-x64
@@ -75,6 +78,9 @@ jobs:
           done
           file "$X64_APP/Contents/MacOS/ToastifyReloaded.Mac" | grep -Eiq 'x86_64|x86-64'
           file "$ARM_APP/Contents/MacOS/ToastifyReloaded.Mac" | grep -Eiq 'arm64|aarch64'
+
+      - name: Native macOS app startup smoke test
+        run: ./scripts/test-macos-gui.sh
 
       - name: Package release ZIP and DMG
         run: |

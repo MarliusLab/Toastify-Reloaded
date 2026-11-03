@@ -5,10 +5,13 @@ on:
     branches: [ main ]
     paths:
       - "src/ToastifyReloaded.Mac/**"
+      - "src/ToastifyReloaded.Shared/**"
+      - "tests/ToastifyReloaded.TrackLink.Tests/**"
       - "packaging/macos/**"
       - "scripts/build-macos.sh"
       - "scripts/package-macos-*.sh"
       - "scripts/test-macos-ci.sh"
+      - "scripts/test-macos-gui.sh"
       - "scripts/validate-macos-parity.py"
       - ".github/workflows/macos-build.yml"
       - ".github/workflows/macos-release.yml"
@@ -16,10 +19,13 @@ on:
     branches: [ main ]
     paths:
       - "src/ToastifyReloaded.Mac/**"
+      - "src/ToastifyReloaded.Shared/**"
+      - "tests/ToastifyReloaded.TrackLink.Tests/**"
       - "packaging/macos/**"
       - "scripts/build-macos.sh"
       - "scripts/package-macos-*.sh"
       - "scripts/test-macos-ci.sh"
+      - "scripts/test-macos-gui.sh"
       - "scripts/validate-macos-parity.py"
       - ".github/workflows/macos-build.yml"
       - ".github/workflows/macos-release.yml"
@@ -75,6 +81,9 @@ jobs:
       - name: Build and run native macOS self-test
         run: ./scripts/test-macos-ci.sh
 
+      - name: Test track links and safe launcher fallbacks
+        run: dotnet run --project tests/ToastifyReloaded.TrackLink.Tests -c Release
+
       - name: Publish Intel and Apple Silicon
         run: |
           ./scripts/build-macos.sh osx-x64
@@ -105,6 +114,9 @@ jobs:
           grep -Eiq 'x86_64|x86-64' "$RUNNER_TEMP/x64-file.txt"
           grep -Eiq 'arm64|aarch64' "$RUNNER_TEMP/arm64-file.txt"
 
+      - name: Native macOS app startup smoke test
+        run: ./scripts/test-macos-gui.sh
+
       - name: Package ZIP and DMG
         run: |
           ./scripts/package-macos-zip.sh osx-x64
@@ -133,7 +145,7 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: toastify-reloaded-macos-preview1
+          name: toastify-reloaded-macos
           path: |
             dist/ToastifyReloaded-macOS-x64.zip
             dist/ToastifyReloaded-macOS-arm64.zip
@@ -141,4 +153,5 @@ jobs:
             dist/ToastifyReloaded-macOS-arm64.dmg
             dist/SHA256SUMS-macOS.txt
             dist/macos-self-test.log
+            dist/macos-smoke-test.log
           if-no-files-found: error

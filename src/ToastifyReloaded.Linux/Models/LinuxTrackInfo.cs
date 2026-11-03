@@ -7,7 +7,9 @@ public sealed record LinuxTrackInfo(
     string ArtworkUrl,
     double PositionSeconds,
     double DurationSeconds,
-    bool IsPlaying)
+    bool IsPlaying,
+    string? TrackUri = null)
 {
-    public string Identity => $"{Title}\u001f{Artist}\u001f{Album}";
+    public string Identity => ToastifyReloaded.Shared.SpotifyTrackLink.TryGetTrackUri(TrackUri)
+        ?? $"{Title}\u001f{Artist}\u001f{Album}";
 }

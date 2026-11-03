@@ -55,6 +55,7 @@ The Debian package declares:
 ```text
 playerctl
 xbindkeys
+xdg-utils
 xdg-desktop-portal
 libx11-6
 libice6
@@ -67,19 +68,19 @@ For AppImage/tar users, install the required host tools and desktop libraries us
 ### Ubuntu / Debian
 
 ```bash
-sudo apt install playerctl xbindkeys xdg-desktop-portal libx11-6 libice6 libsm6 libfontconfig1
+sudo apt install playerctl xbindkeys xdg-utils xdg-desktop-portal libx11-6 libice6 libsm6 libfontconfig1
 ```
 
 ### Fedora
 
 ```bash
-sudo dnf install playerctl xbindkeys xdg-desktop-portal libX11 libICE libSM fontconfig
+sudo dnf install playerctl xbindkeys xdg-utils xdg-desktop-portal libX11 libICE libSM fontconfig
 ```
 
 ### Arch Linux
 
 ```bash
-sudo pacman -S playerctl xbindkeys xdg-desktop-portal libx11 libice libsm fontconfig
+sudo pacman -S playerctl xbindkeys xdg-utils xdg-desktop-portal libx11 libice libsm fontconfig
 ```
 
 ## Spotify / MPRIS
@@ -260,3 +261,9 @@ rebuilds all stable assets, generates `SHA256SUMS.txt` and publishes the GitHub 
 ## Platform-specific notes
 
 Functional parity does not mean identical OS implementation. Linux deliberately uses MPRIS, X11/Wayland shortcut backends and StatusNotifierItem/AppIndicator instead of Windows media/session APIs. Desktop-environment behavior can therefore differ in permission dialogs, tray availability and fullscreen detection.
+
+## Click to open the track (unreleased)
+
+Click the title or artist, or focus either link and press Enter/Space. Toastify uses the track identifier captured with the displayed metadata. It tries the Spotify URI through xdg-open, then the canonical Spotify web page if that handler reports failure. For missing identifiers, local files or ads, it raises Spotify through MPRIS when available, then tries the fixed spotify: application URI. An error is shown if no handler succeeds. Install xdg-utils for xdg-open; gdbus is an optional app-activation fallback. Existing settings need no migration.
+
+See [platform status](PLATFORM_STATUS.md) for automated evidence and remaining live desktop validation.

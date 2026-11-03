@@ -1,5 +1,7 @@
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Platform;
 using ToastifyReloaded.Mac.Models;
@@ -12,6 +14,10 @@ public partial class ToastWindow : Window
     private readonly MacTrackInfo _track;
     private readonly MacSettings _settings;
     private readonly ArtworkService _artworkService;
+    private readonly SpotifyTrackOpenService _trackOpenService = new(new ProcessService());
+    private bool _openingTrack;
+    private string? _openStatus;
+    private DateTime _statusUntil;
 
     public ToastWindow(
         MacTrackInfo track,
@@ -62,7 +68,7 @@ public partial class ToastWindow : Window
         var initialPosition = _track.PositionSeconds;
 
         while ((DateTime.UtcNow - started).TotalMilliseconds <
-               _settings.ToastDisplayMs)
+               _settings.ToastDisplayMs || _openingTrack || DateTime.UtcNow < _statusUntil)
         {
             var elapsed = _track.IsPlaying
                 ? (DateTime.UtcNow - started).TotalSeconds
@@ -89,6 +95,39 @@ public partial class ToastWindow : Window
         ArtistText.Text = string.IsNullOrWhiteSpace(_track.Artist)
             ? _track.Album
             : _track.Artist;
+
+        var label = new LocalizationService().Get("OpenTrack", _settings.Language);
+        AutomationProperties.SetName(TitleLink, $"{label}: {TitleText.Text}");
+        AutomationProperties.SetName(ArtistLink, $"{label}: {ArtistText.Text}");
+        ToolTip.SetTip(TitleLink, label);
+        ToolTip.SetTip(ArtistLink, label);
+    }
+
+    private async void OnTrackLinkClick(object? sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (_openingTrack)
+            return;
+
+        _openingTrack = true;
+        TitleLink.IsEnabled = ArtistLink.IsEnabled = false;
+        try
+        {
+            // The immutable toast snapshot owns the identifier. A delayed click
+            // must not resolve a newer song from Spotify or guess by title.
+            var result = await _trackOpenService.OpenAsync(_track.TrackUri);
+            _openStatus = new LocalizationService().Get(result.Message, _settings.Language);
+            ToolTip.SetTip(TitleLink, _openStatus);
+            ToolTip.SetTip(ArtistLink, _openStatus);
+            TimeText.IsVisible = true;
+            TimeText.Text = _openStatus;
+            _statusUntil = DateTime.UtcNow.AddSeconds(2);
+        }
+        finally
+        {
+            _openingTrack = false;
+            TitleLink.IsEnabled = ArtistLink.IsEnabled = true;
+        }
     }
 
     private void ApplyWidth()
@@ -179,8 +218,9 @@ public partial class ToastWindow : Window
             0,
             1);
 
-        TimeText.Text =
-            $"{FormatTime(current)} / {FormatTime(_track.DurationSeconds)}";
+        if (_openStatus is null)
+            TimeText.Text =
+                $"{FormatTime(current)} / {FormatTime(_track.DurationSeconds)}";
     }
 
     private static string FormatTime(double seconds)

@@ -11,6 +11,25 @@
     Background="Transparent"
     TransparencyLevelHint="Transparent">
 
+  <Window.Styles>
+    <Style Selector="Button.track-link">
+      <Setter Property="Padding" Value="0"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="HorizontalAlignment" Value="Stretch"/>
+      <Setter Property="HorizontalContentAlignment" Value="Left"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Focusable" Value="True"/>
+      <Setter Property="MinHeight" Value="0"/>
+    </Style>
+    <Style Selector="Button.track-link:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="Transparent"/>
+    </Style>
+    <Style Selector="Button.track-link:pressed /template/ ContentPresenter">
+      <Setter Property="Background" Value="Transparent"/>
+    </Style>
+  </Window.Styles>
+
   <Border
       x:Name="RootBorder"
       CornerRadius="4"
@@ -28,16 +47,19 @@
           Grid.Column="1"
           Margin="8,0,0,0"
           RowDefinitions="Auto,Auto,Auto,*">
-        <TextBlock
+        <Button x:Name="TitleLink" Classes="track-link" Click="OnTrackLinkClick">
+          <TextBlock
             x:Name="TitleText"
             FontSize="15"
             FontWeight="SemiBold"
             TextTrimming="CharacterEllipsis"/>
-        <TextBlock
+        </Button>
+        <Button x:Name="ArtistLink" Grid.Row="1" Classes="track-link" Click="OnTrackLinkClick">
+          <TextBlock
             x:Name="ArtistText"
-            Grid.Row="1"
             FontSize="12"
             TextTrimming="CharacterEllipsis"/>
+        </Button>
         <TextBlock
             x:Name="TimeText"
             Grid.Row="2"

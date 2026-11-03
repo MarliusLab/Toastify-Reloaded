@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../src/ToastifyReloaded.Shared/SpotifyTrackLink.cs" Link="SpotifyTrackLink.cs" />
+    <Compile Include="../../src/ToastifyReloaded.Linux/Models/LinuxTrackInfo.cs" Link="Linux/TrackInfo.cs" />
+    <Compile Include="../../src/ToastifyReloaded.Linux/Services/ProcessService.cs" Link="Linux/ProcessService.cs" />
+    <Compile Include="../../src/ToastifyReloaded.Linux/Services/PlayerctlService.cs" Link="Linux/PlayerctlService.cs" />
+    <Compile Include="../../src/ToastifyReloaded.Linux/Services/SpotifyTrackOpenService.cs" Link="Linux/TrackOpenService.cs" />
+    <Compile Include="../../src/ToastifyReloaded.Mac/Models/MacTrackInfo.cs" Link="Mac/TrackInfo.cs" />
+    <Compile Include="../../src/ToastifyReloaded.Mac/Services/ProcessService.cs" Link="Mac/ProcessService.cs" />
+    <Compile Include="../../src/ToastifyReloaded.Mac/Services/SpotifyAppleScriptService.cs" Link="Mac/SpotifyAppleScriptService.cs" />
+    <Compile Include="../../src/ToastifyReloaded.Mac/Services/SpotifyTrackOpenService.cs" Link="Mac/TrackOpenService.cs" />
+  </ItemGroup>
+</Project>

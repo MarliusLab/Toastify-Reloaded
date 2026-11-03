@@ -5,11 +5,11 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Marlius92/Toastify-Reloaded/actions/workflows/build.yml">
-    <img alt="Build" src="https://github.com/Marlius92/Toastify-Reloaded/actions/workflows/build.yml/badge.svg">
+  <a href="https://github.com/MarliusLab/Toastify-Reloaded/actions/workflows/build.yml">
+    <img alt="Build" src="https://github.com/MarliusLab/Toastify-Reloaded/actions/workflows/build.yml/badge.svg">
   </a>
-  <a href="https://github.com/Marlius92/Toastify-Reloaded/releases/latest">
-    <img alt="Latest release" src="https://img.shields.io/github/v/release/Marlius92/Toastify-Reloaded?display_name=tag">
+  <a href="https://github.com/MarliusLab/Toastify-Reloaded/releases/latest">
+    <img alt="Latest release" src="https://img.shields.io/github/v/release/MarliusLab/Toastify-Reloaded?display_name=tag">
   </a>
   <a href="LICENSE">
     <img alt="License GPL-2.0" src="https://img.shields.io/badge/license-GPL--2.0-blue">
@@ -25,7 +25,7 @@ The project keeps the recognizable Toastify workflow and notification style whil
 
 > **Independent community project.** Toastify Reloaded is not affiliated with Spotify AB and is not an official release maintained by the original Toastify developers.
 
-**Current stable Windows release:** `v1.3.4`  
+**Current stable Windows release:** `v.1.3.5`
 **Current stable Linux release:** `v1.4.0-linux`
 
 
@@ -35,18 +35,18 @@ The project keeps the recognizable Toastify workflow and notification style whil
 
 ### Windows — stable
 
-[Download Toastify Reloaded from GitHub Releases](https://github.com/Marlius92/Toastify-Reloaded/releases)
+[Download Toastify Reloaded from GitHub Releases](https://github.com/MarliusLab/Toastify-Reloaded/releases)
 
 Windows installer packages:
 
 - **Windows x64** — `ToastifyReloaded-Setup-win-x64.exe`
 - **Windows ARM64** — `ToastifyReloaded-Setup-win-arm64.exe`
 
-Current stable Windows release: **v1.3.4**.
+Current stable Windows release: **v.1.3.5**.
 
 ### Linux — stable 1.4.0
 
-**[Download Toastify Reloaded Linux v1.4.0 stable release](https://github.com/Marlius92/Toastify-Reloaded/releases/tag/v1.4.0-linux)**
+**[Download Toastify Reloaded Linux v1.4.0 stable release](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.4.0-linux)**
 
 The first stable Linux line targets functional parity with the Windows v1.3.4 feature set while using native Linux backends.
 
@@ -964,7 +964,7 @@ Please avoid posting passwords, tokens or other private information.
 Clone:
 
 ```bash
-git clone https://github.com/Marlius92/Toastify-Reloaded.git
+git clone https://github.com/MarliusLab/Toastify-Reloaded.git
 cd Toastify-Reloaded
 ```
 
@@ -1055,13 +1055,21 @@ Toastify-Reloaded/
 ---
 
 ## Platform status
+### Click a toast title or artist (development)
+
+On Linux and macOS, the title and artist are keyboard accessible links to the **track shown in that toast**. The player supplies a Spotify catalog track URI or URL in the same metadata snapshot; a change of song cannot attach another track to the displayed text. Opening a track navigates Spotify; it does not issue a play command or change the listening context.
+
+Toastify tries Spotify first, then a canonical HTTPS track link if the native handler fails. Local files, advertisements and missing or invalid track identifiers only activate Spotify. Untrusted URLs and title searches are never launched. No new setting or configuration migration is required; existing settings, themes, hotkeys and playback controls remain available.
+
+This feature is unreleased. See [verified platform status and remaining validation](docs/PLATFORM_STATUS.md) for the distinction between automated checks and real Spotify/desktop tests. The Spotify URI and ID formats follow [Spotify documentation](https://developer.spotify.com/documentation/web-api/concepts/spotify-uris-ids).
 
 | Platform | Status | Distribution |
 |---|---|---|
-| Windows x64 | Stable — v1.3.4 | Installer |
-| Windows ARM64 | Stable — v1.3.4 | Installer |
+| Windows x64 | Stable — v.1.3.5 | Installer |
+| Windows ARM64 | Stable — v.1.3.5 | Installer |
 | Linux x64 | Stable — v1.4.0 | AppImage / `.deb` / tar.gz |
 | Linux ARM64 | Stable — v1.4.0 | `.deb` / tar.gz |
+| macOS x64 / Apple Silicon | RC1 code; stable validation pending | ZIP / DMG build targets |
 
 Linux stable tag: **`v1.4.0-linux`**.
 

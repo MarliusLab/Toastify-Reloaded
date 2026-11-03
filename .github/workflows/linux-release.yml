@@ -25,15 +25,25 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            playerctl xbindkeys xdg-desktop-portal dbus-x11 \
-            libx11-6 libice6 libsm6 libfontconfig1 \
-            desktop-file-utils curl file
+            playerctl xbindkeys xdg-desktop-portal dbus-x11 xdg-utils \
+            libx11-6 libice6 libsm6 libfontconfig1 libxext6 \
+            libxrender1 libxrandr2 libxi6 libgl1 libglib2.0-0 \
+            desktop-file-utils curl file xvfb xauth
+
+      - name: Test track links and safe launcher fallbacks
+        run: dotnet run --project tests/ToastifyReloaded.TrackLink.Tests -c Release
 
       - name: Build x64 and ARM64
         run: |
           chmod +x scripts/build-linux.sh scripts/build-linux-arm64.sh
           ./scripts/build-linux.sh
           ./scripts/build-linux-arm64.sh
+
+      - name: Linux headless self-test and GUI startup smoke test
+        run: |
+          chmod +x scripts/test-linux-rc.sh scripts/test-linux-ci.sh
+          ./scripts/test-linux-rc.sh
+          ./scripts/test-linux-ci.sh
 
       - name: Validate Linux desktop entry
         run: |

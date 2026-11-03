@@ -14,15 +14,15 @@ public sealed class LinuxSettingsService
     public string ConfigDirectory { get; }
     public string SettingsPath { get; }
 
-    public LinuxSettingsService()
+    public LinuxSettingsService(string? configDirectory = null)
     {
         var xdg = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME");
-        ConfigDirectory = !string.IsNullOrWhiteSpace(xdg)
+        ConfigDirectory = configDirectory ?? (!string.IsNullOrWhiteSpace(xdg)
             ? Path.Combine(xdg, "toastify-reloaded")
             : Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
                 ".config",
-                "toastify-reloaded");
+                "toastify-reloaded"));
 
         SettingsPath = Path.Combine(ConfigDirectory, "settings.json");
     }

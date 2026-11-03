@@ -27,7 +27,7 @@ public partial class MainWindow : Window
 
     private LinuxSettings _settings = new();
     private DispatcherTimer? _pollTimer;
-    private string _lastTrackIdentity = string.Empty;
+    private readonly ToastifyReloaded.Shared.SpotifyTrackChangeTracker _trackChanges = new();
     private bool _polling;
     private bool _loadingUi;
     private bool _allowExit;
@@ -154,9 +154,8 @@ public partial class MainWindow : Window
                 return;
 
             if (_settings.ShowToastOnTrackChange &&
-                track.Identity != _lastTrackIdentity)
+                _trackChanges.Update(track.TrackUri, track.Title, track.Artist, track.Album))
             {
-                _lastTrackIdentity = track.Identity;
                 _ = ShowToastAsync(track);
             }
         }
@@ -173,7 +172,8 @@ public partial class MainWindow : Window
             var toast = new ToastWindow(
                 track,
                 _settings,
-                _artworkService);
+                _artworkService,
+                new SpotifyTrackOpenService(_processService, _playerctl));
 
             await toast.ShowToastAsync();
         }

@@ -3,11 +3,9 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP="$ROOT/dist/linux-x64/ToastifyReloaded.Linux"
-TMP_CONFIG="$RUNNER_TEMP/toastify-release-selftest-config"
+TMP_CONFIG="$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/toastify-linux-selftest.XXXXXX")"
 LOG="$ROOT/dist/linux-release-self-test.log"
-
-rm -rf "$TMP_CONFIG"
-mkdir -p "$TMP_CONFIG"
+trap 'rm -rf "$TMP_CONFIG"' EXIT
 
 test -x "$APP"
 
