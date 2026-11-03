@@ -51,9 +51,12 @@ VIAddVersionKey /LANG=1033 "LegalCopyright" "Toastify Reloaded contributors"
 !define MUI_FINISHPAGE_RUN "$INSTDIR\${APP_EXE_NAME}"
 !define MUI_FINISHPAGE_RUN_TEXT "Avvia ${APP_NAME}"
 
+!define MUI_PAGE_CUSTOMFUNCTION_PRE SkipUpdateWizardPage
 !insertmacro MUI_PAGE_WELCOME
+!define MUI_PAGE_CUSTOMFUNCTION_PRE SkipUpdateWizardPage
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
+!define MUI_PAGE_CUSTOMFUNCTION_PRE SkipUpdateWizardPage
 !insertmacro MUI_PAGE_FINISH
 
 !insertmacro MUI_UNPAGE_CONFIRM
@@ -85,13 +88,61 @@ Function .onInit
     ${GetOptions} $R0 "/RESTARTMINIMIZED=" $RestartMinimized
     ${If} $UpdatePid != ""
         StrCpy $IsUpdate "1"
-        DetailPrint "Attendo la chiusura di ${APP_NAME} (PID $UpdatePid)..."
-        nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "try { Wait-Process -Id $UpdatePid -Timeout 60 -ErrorAction Stop } catch { }"'
-        Sleep 600
+        SetAutoClose true
     ${EndIf}
 FunctionEnd
 
+Function SkipUpdateWizardPage
+    ${If} $IsUpdate == "1"
+        Abort
+    ${EndIf}
+FunctionEnd
+
+Function WaitForUpdatingProcess
+    ${If} $IsUpdate != "1"
+        Return
+    ${EndIf}
+
+    ; Canonical unsigned decimal must round-trip within a DWORD. This rejects
+    ; signs, trailing text, hexadecimal, zero and overflow before OpenProcess.
+    StrLen $0 $UpdatePid
+    ${If} $0 > 10
+        SetErrorLevel 87
+        Abort "PID di aggiornamento non valido. Nessun file modificato."
+    ${EndIf}
+    IntFmt $0 "%u" $UpdatePid
+    ${If} $0 != $UpdatePid
+    ${OrIf} $0 == "0"
+        SetErrorLevel 87
+        Abort "PID di aggiornamento non valido. Nessun file modificato."
+    ${EndIf}
+
+    ; Wait after the progress page opens, never during .onInit/UAC handoff.
+    ; Use a native process handle; command-line values are never executable code.
+    DetailPrint "Attendo la chiusura di ${APP_NAME} (PID $UpdatePid)..."
+    System::Call 'kernel32::OpenProcess(i 0x00100000, i 0, i $UpdatePid) p .r0 ?e'
+    Pop $1
+    ${If} $0 != 0
+        System::Call 'kernel32::WaitForSingleObject(p r0, i 60000) i .r1'
+        System::Call 'kernel32::CloseHandle(p r0)'
+        ${If} $1 == 258
+            SetErrorLevel 1460
+            Abort "Toastify Reloaded non si e chiuso entro 60 secondi. Aggiornamento annullato."
+        ${ElseIf} $1 != 0
+            SetErrorLevel 5
+            Abort "Impossibile attendere la chiusura di Toastify Reloaded. Aggiornamento annullato."
+        ${EndIf}
+    ${ElseIf} $1 != 87
+        ; ERROR_INVALID_PARAMETER means the process already exited. Any other
+        ; failure cannot prove the executable is unlocked, so stop safely.
+        SetErrorLevel 5
+        Abort "Impossibile verificare la chiusura di Toastify Reloaded. Aggiornamento annullato."
+    ${EndIf}
+    DetailPrint "Applicazione chiusa. Installazione della versione ${APP_VERSION}..."
+FunctionEnd
+
 Section "${APP_NAME}" SecMain
+    Call WaitForUpdatingProcess
     SetShellVarContext all
     SetRegView 64
     SetOutPath "$INSTDIR"
@@ -128,8 +179,8 @@ Section "${APP_NAME}" SecMain
         WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "ToastifyReloaded" '"$INSTDIR\${APP_EXE_NAME}" --minimized'
     ${EndIf}
 
-    ; Silent installer launches are used by the in-app updater. The normal
-    ; interactive installer uses the Finish-page checkbox instead.
+    ; In-app updates show installation progress, skip the wizard pages and
+    ; restart here. Normal installations use the Finish-page checkbox instead.
     ${If} $IsUpdate == "1"
         ${If} $RestartMinimized == "1"
             Exec '"$INSTDIR\${APP_EXE_NAME}" --minimized'

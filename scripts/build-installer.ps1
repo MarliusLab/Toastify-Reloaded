@@ -25,6 +25,16 @@ $distDir = Join-Path $repo 'dist'
 $publishDir = Join-Path $distDir "_installer\$Runtime\app"
 $setupPath = Join-Path $distDir "ToastifyReloaded-Setup-$Runtime.exe"
 
+# Resolve every removal target inside this checkout before changing files.
+$workspacePrefix = [IO.Path]::GetFullPath($repo).TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
+$publishDir = [IO.Path]::GetFullPath($publishDir)
+$setupPath = [IO.Path]::GetFullPath($setupPath)
+foreach ($target in @($publishDir, $setupPath)) {
+    if (-not $target.StartsWith($workspacePrefix, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Percorso di compilazione esterno al progetto: $target"
+    }
+}
+
 if (Test-Path $publishDir) { Remove-Item $publishDir -Recurse -Force }
 if (Test-Path $setupPath) { Remove-Item $setupPath -Force }
 New-Item -ItemType Directory -Force -Path $publishDir | Out-Null
@@ -38,6 +48,9 @@ dotnet publish $projectPath `
     -p:IncludeNativeLibrariesForSelfExtract=true `
     -p:DebugType=None `
     -o $publishDir
+if ($LASTEXITCODE -ne 0) {
+    throw "dotnet publish ha restituito exit code $LASTEXITCODE"
+}
 
 $appExe = Join-Path $publishDir 'ToastifyReloaded.exe'
 if (-not (Test-Path -LiteralPath $appExe)) {

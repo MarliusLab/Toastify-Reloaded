@@ -65,6 +65,10 @@ jobs:
         if: steps.prepare.outputs.publish == 'true'
         run: dotnet run --project tests/ToastifyReloaded.TrackLink.Tests -c Release
 
+      - name: Test Windows detection, updater and installer handshake
+        if: steps.prepare.outputs.publish == 'true'
+        run: dotnet run --project tests/ToastifyReloaded.Windows.Tests -c Release
+
       - name: Build x64 installer
         if: steps.prepare.outputs.publish == 'true'
         shell: pwsh

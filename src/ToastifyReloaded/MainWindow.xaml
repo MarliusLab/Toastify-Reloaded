@@ -797,12 +797,18 @@
                             <CheckBox x:Name="AutoUpgradeSpicetifyCheckBox" Grid.Row="9" Grid.ColumnSpan="2" Content="Upgrade Spicetify before repair" />
                             <CheckBox x:Name="RestartSpotifyCheckBox" Grid.Row="10" Grid.ColumnSpan="2" Content="Restart Spotify after repair" />
 
-                            <TextBlock x:Name="UpdateStatusText" Grid.Row="12" Grid.ColumnSpan="2" Text="Updates have not been checked yet." TextWrapping="Wrap" Foreground="{DynamicResource InfoTextColorBrush}" />
+                            <StackPanel Grid.Row="12" Grid.ColumnSpan="2">
+                                <TextBlock x:Name="UpdateStatusText" Text="Updates have not been checked yet." TextWrapping="Wrap" Foreground="{DynamicResource InfoTextColorBrush}" AutomationProperties.LiveSetting="Polite" />
+                                <DockPanel x:Name="UpdateProgressPanel" Visibility="Collapsed" Margin="0,7,0,0" LastChildFill="True">
+                                    <Button x:Name="CancelUpdateButton" DockPanel.Dock="Right" Content="Cancel download" Click="CancelUpdate_Click" Padding="7,2" Margin="8,0,0,0" />
+                                    <ProgressBar x:Name="UpdateProgressBar" Minimum="0" Maximum="100" Height="14" VerticalAlignment="Center" Foreground="#FF1DB954" Background="{DynamicResource AppControlBrush}" AutomationProperties.Name="Update download progress" />
+                                </DockPanel>
+                            </StackPanel>
                             <WrapPanel Grid.Row="13" Grid.ColumnSpan="2" Margin="0,10,0,0">
-                                <Button Content="Check updates" Click="CheckUpdatesNow_Click" Margin="0,0,6,6" Padding="8,4" />
-                                <Button Content="Install update" Click="InstallUpdateNow_Click" Margin="0,0,6,6" Padding="8,4" />
-                                <Button Content="Check compatibility" Click="CheckCompatibilityNow_Click" Margin="0,0,6,6" Padding="8,4" />
-                                <Button Content="Repair now" Click="RepairSpotifyNow_Click" Margin="0,0,0,6" Padding="8,4" />
+                                <Button x:Name="CheckUpdatesButton" Content="Check updates" Click="CheckUpdatesNow_Click" Margin="0,0,6,6" Padding="8,4" />
+                                <Button x:Name="InstallUpdateButton" Content="Install update" Click="InstallUpdateNow_Click" Margin="0,0,6,6" Padding="8,4" />
+                                <Button x:Name="CheckCompatibilityButton" Content="Check compatibility" Click="CheckCompatibilityNow_Click" Margin="0,0,6,6" Padding="8,4" />
+                                <Button x:Name="RepairSpotifyButton" Content="Repair now" Click="RepairSpotifyNow_Click" Margin="0,0,0,6" Padding="8,4" />
                             </WrapPanel>
                         </Grid>
                     </GroupBox>
