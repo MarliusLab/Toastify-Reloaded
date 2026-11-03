@@ -52,6 +52,8 @@ Windows checksums: `SHA256SUMS-Windows.txt`.
 
 Version 1.3.7 fixes Spotify/Spicetify version discovery and stalled updates. Downloads show bytes and percentage with cancellation and bounded waits; installation uses the native installer progress bar. Existing settings and the earlier legacy-tag update fix are preserved.
 
+Windows 1.3.8 is prepared for publication after CI passes. It adds the missing toast click action to open/restore Spotify, with keyboard activation and safe fallbacks. See [Windows toast behavior and track-identity limits](docs/WINDOWS_TOAST.md).
+
 If a running 1.3.5/1.3.6 is already stuck updating, choose **Exit** from the Toastify tray menu and run the new installer manually once. See [Windows maintenance and progress](docs/WINDOWS_MAINTENANCE.md).
 
 ### Linux — stable 1.4.1

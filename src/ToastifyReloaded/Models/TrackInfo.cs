@@ -7,7 +7,8 @@ public sealed record TrackInfo(
     byte[]? ArtworkBytes = null,
     TimeSpan Position = default,
     TimeSpan Duration = default,
-    bool IsPlaying = false)
+    bool IsPlaying = false,
+    string? TrackUri = null)
 {
     public string Identity => $"{Title}\u001f{Artist}\u001f{Album}";
 

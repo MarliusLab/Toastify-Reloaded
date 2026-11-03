@@ -14,6 +14,7 @@ using MediaColor = System.Windows.Media.Color;
 using MediaColors = System.Windows.Media.Colors;
 using MediaColorConverter = System.Windows.Media.ColorConverter;
 using ToastifyReloaded.Models;
+using ToastifyReloaded.Services;
 using Forms = System.Windows.Forms;
 
 namespace ToastifyReloaded;
@@ -29,9 +30,22 @@ public partial class ToastWindow : Window
     private readonly DateTimeOffset _timelineSnapshotAt;
     private bool _fadeOutStarted;
     private bool _secondPositionPassScheduled;
+    private readonly string? _trackUri;
+    private readonly Func<string?, CancellationToken, Task<SpotifyTrackOpenResult>> _openTrack;
+    private readonly CancellationTokenSource _openCancellation = new();
+    private bool _openingSpotify;
+    private bool _closed;
 
     public ToastWindow(TrackInfo track, AppSettings settings)
+        : this(track, settings, new SpotifyTrackOpenService().OpenAsync)
     {
+    }
+
+    internal ToastWindow(TrackInfo track, AppSettings settings,
+        Func<string?, CancellationToken, Task<SpotifyTrackOpenResult>> openTrack)
+    {
+        _trackUri = track.TrackUri;
+        _openTrack = openTrack;
         _settings = settings;
         _timelineStartPosition = track.Position < TimeSpan.Zero ? TimeSpan.Zero : track.Position;
         _trackDuration = track.Duration < TimeSpan.Zero ? TimeSpan.Zero : track.Duration;
@@ -51,6 +65,7 @@ public partial class ToastWindow : Window
             Title1.Text = track.Title;
             Title2.Text = track.Artist;
         }
+        SetOpenSpotifyHint(failed: false);
 
         ToastBorder.BorderThickness = new Thickness(Math.Max(0, settings.ToastBorderThickness));
         ToastBorder.CornerRadius = new CornerRadius(
@@ -109,6 +124,9 @@ public partial class ToastWindow : Window
         };
         Closed += (_, _) =>
         {
+            _closed = true;
+            _openCancellation.Cancel();
+            _openCancellation.Dispose();
             _timer.Stop();
             _timelineTimer.Stop();
         };
@@ -570,13 +588,62 @@ public partial class ToastWindow : Window
         timer.Start();
     }
 
-    private void Window_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    private async void Window_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control) && e.ButtonState == MouseButtonState.Pressed)
+        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
         {
-            try { DragMove(); }
-            catch { }
+            if (e.ButtonState == MouseButtonState.Pressed)
+            {
+                try { DragMove(); }
+                catch { }
+            }
+            e.Handled = true;
+            return;
         }
+        e.Handled = true;
+        await OpenSpotifyAsync();
+    }
+
+    private async void Title_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key is not (Key.Enter or Key.Space) || Keyboard.Modifiers != ModifierKeys.None)
+            return;
+        e.Handled = true;
+        await OpenSpotifyAsync();
+    }
+
+    private async Task OpenSpotifyAsync()
+    {
+        if (_openingSpotify || _closed) return;
+        _openingSpotify = true;
+        var resumeTimer = _timer.IsEnabled;
+        _timer.Stop();
+        try
+        {
+            var result = await _openTrack(_trackUri, _openCancellation.Token);
+            if (!_closed) SetOpenSpotifyHint(result == SpotifyTrackOpenResult.Failed);
+        }
+        catch (OperationCanceledException) when (_closed || _openCancellation.IsCancellationRequested) { }
+        catch
+        {
+            if (!_closed) SetOpenSpotifyHint(failed: true);
+        }
+        finally
+        {
+            _openingSpotify = false;
+            if (!_closed && resumeTimer && !_fadeOutStarted) _timer.Start();
+        }
+    }
+
+    private void SetOpenSpotifyHint(bool failed)
+    {
+        var italian = string.Equals(_settings.ApplicationLanguage, "Italian", StringComparison.OrdinalIgnoreCase);
+        var hint = failed
+            ? (italian ? "Impossibile aprire Spotify. Verifica che sia installato e riprova." : "Could not open Spotify. Check that it is installed and try again.")
+            : (italian ? "Apri Spotify (Ctrl+trascina per spostare il toast)" : "Open Spotify (Ctrl+drag to move the toast)");
+        ToastBorder.ToolTip = hint;
+        System.Windows.Automation.AutomationProperties.SetName(Title1, $"{Title1.Text}. {hint}");
+        System.Windows.Automation.AutomationProperties.SetName(Title2, $"{Title2.Text}. {hint}");
     }
 
     private static MediaColor ParseColor(string value, MediaColor fallback)

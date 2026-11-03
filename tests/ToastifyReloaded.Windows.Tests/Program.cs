@@ -31,7 +31,9 @@ internal static class Program
             await UpdateTests.RunAsync(Check);
             await InstallerTests.RunAsync(Check);
             await UiTests.RunAsync(Check);
-            Console.WriteLine($"WINDOWS MAINTENANCE TEST RESULT: PASS ({count})");
+            await SpotifyTrackOpenTests.RunAsync(Check);
+            await ToastTests.RunAsync(Check);
+            Console.WriteLine($"WINDOWS REGRESSION TEST RESULT: PASS ({count})");
             return 0;
         }
         catch (Exception ex)

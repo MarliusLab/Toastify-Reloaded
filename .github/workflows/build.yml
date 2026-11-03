@@ -29,7 +29,7 @@ jobs:
       - name: Test release versions and Spotify track links
         run: dotnet run --project tests/ToastifyReloaded.TrackLink.Tests -c Release
 
-      - name: Test Windows detection, updater and installer handshake
+      - name: Test Windows toast activation, detection, updater and installer handshake
         run: dotnet run --project tests/ToastifyReloaded.Windows.Tests -c Release
 
       - name: Upload maintenance UI preview
