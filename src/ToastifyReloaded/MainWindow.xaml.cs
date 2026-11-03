@@ -393,6 +393,7 @@ public partial class MainWindow : Window
         if (_globalHotkeys is null)
             return;
 
+        _globalHotkeys.ToastNowPlaying.Enabled = _settings.GlobalHotkeysEnabled;
         if (!_settings.GlobalHotkeysEnabled)
         {
             _globalHotkeys.RegisterAll(Array.Empty<HotkeyBinding>());
@@ -428,7 +429,7 @@ public partial class MainWindow : Window
 
     private void ShowToast(TrackInfo track)
     {
-        var toast = new ToastWindow(track, _settings);
+        var toast = new ToastWindow(track, _settings, _globalHotkeys?.ToastNowPlaying);
         toast.ShowTimed();
     }
 
