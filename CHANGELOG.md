@@ -1,5 +1,39 @@
 # Changelog
 
+The 2026-11-03 entries below describe releases prepared for publication. Availability is recorded in [GitHub Releases](https://github.com/MarliusLab/Toastify-Reloaded/releases); historical tags are preserved.
+
+## 1.5.0-macos-rc.2 - 2026-11-03 (prepared prerelease)
+
+- Added clickable, keyboard accessible toast titles and artists opening the displayed track through a validated Spotify catalog identifier.
+- Added safe HTTPS and Spotify-activation fallbacks, bounded opener attempts and failure feedback. Missing or invalid identifiers do not become title searches or arbitrary external links.
+- Fixed the stale Preview 1 self-test assertion that blocked RC1 on `main`; the self-test validates the actual Preview/RC/stable channel.
+- Hardened DMG sizing, verification and cleanup after the native packaging failure; retained Intel and Apple Silicon ZIP/DMG packages and checksums.
+- Added shared regression checks and isolated startup smoke tests to native build/release gates. Test configuration stays separate from user settings.
+- Preserved settings, themes, hotkeys, media controls and the architecture-aware updater.
+- Remains a release candidate. Real Spotify/permission/updater acceptance on Intel and Apple Silicon, and distribution signing/notarization acceptance, remain open; automated ad-hoc signature checks do not establish Gatekeeper acceptance.
+
+## 1.4.1-linux - 2026-11-03 (prepared stable patch)
+
+- Added clickable, keyboard accessible title and artist links for the track displayed in each toast.
+- Captured validated `xesam:url` and `mpris:trackid` identifiers with the same metadata snapshot. Conflicting identifiers are rejected, empty fields are safely framed, and transient missing identifiers do not trigger duplicate track notifications.
+- Added canonical Spotify HTTPS fallback when the URI opener fails; missing/unsupported identifiers activate Spotify only. Opener/resolver timeouts propagate to helper processes and failures are reported without terminating the app.
+- Added `xdg-utils` as a DEB dependency and updated x64/ARM64 package version defaults.
+- Added shared regression checks, native headless tests, isolated X11 startup checks and package validation to release gates.
+- Preserved configuration, themes, hotkeys, playback controls and desktop/autostart identifiers. Headless tests now use temporary settings rather than the user's configuration.
+
+## 1.3.6 - 2026-11-03 (prepared Windows stable patch)
+
+- Fixed normalization of legacy Windows tags such as `v.1.3.5`, allowing Windows update checks to compare them with executable versions correctly.
+- Added regression coverage for current/legacy tag spellings and version comparisons; retained filtering of Linux/macOS releases and architecture-specific installer selection.
+- Preserved the settings format and installer upgrade behavior. The clickable title/artist feature is included in Linux/macOS; this Windows patch contains updater maintenance.
+
+## 1.3.5 - 2026-08-19 (Windows; historical tag `v.1.3.5`)
+
+- Changed update checks to select the latest stable Windows release with the matching installer, avoiding Linux/macOS releases in the shared repository.
+- Prevented background update/maintenance callbacks from reopening Settings after the user hid it; explicit tray actions can still reopen it.
+- Restarted automatic installer updates minimized, while allowing a manual installation to reopen Settings.
+- Source provenance: commit [`3852620`](https://github.com/MarliusLab/Toastify-Reloaded/commit/3852620faf76d0421474e1d9eda35a0826b5ed31).
+
 ## 1.3.4
 
 ### Wider, shorter Settings layout

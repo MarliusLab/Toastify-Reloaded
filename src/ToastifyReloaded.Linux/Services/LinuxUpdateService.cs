@@ -7,7 +7,7 @@ namespace ToastifyReloaded.Linux.Services;
 
 public sealed partial class LinuxUpdateService
 {
-    public const string CurrentTag = "v1.4.0-linux";
+    public const string CurrentTag = "v1.4.1-linux";
 
     public static readonly LinuxReleaseVersion CurrentVersion =
         ParseTag(CurrentTag)
@@ -15,7 +15,7 @@ public sealed partial class LinuxUpdateService
             "Invalid current Linux release tag.");
 
     private static readonly Uri ReleasesApi = new(
-        "https://api.github.com/repos/Marlius92/Toastify-Reloaded/releases?per_page=50");
+        "https://api.github.com/repos/MarliusLab/Toastify-Reloaded/releases?per_page=50");
 
     private readonly HttpClient _http;
 
@@ -29,7 +29,7 @@ public sealed partial class LinuxUpdateService
         _http.DefaultRequestHeaders.UserAgent.Add(
             new ProductInfoHeaderValue(
                 "ToastifyReloaded",
-                "1.4.0"));
+                "1.4.1"));
 
         _http.DefaultRequestHeaders.Accept.Add(
             new MediaTypeWithQualityHeaderValue(
@@ -127,7 +127,7 @@ public sealed partial class LinuxUpdateService
             return false;
 
         // Stable users stay on the stable channel. This prevents a future
-        // v1.4.1-linux-preview.1 or -rc.1 from replacing v1.4.0-linux.
+        // v1.4.2-linux-preview.1 or -rc.1 from replacing v1.4.1-linux.
         if (current.Stage == LinuxReleaseStage.Stable)
         {
             return candidate.Stage ==

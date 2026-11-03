@@ -17,43 +17,49 @@
   <img alt=".NET 8" src="https://img.shields.io/badge/.NET-8.0-512BD4">
   <img alt="Windows" src="https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4">
   <img alt="Linux" src="https://img.shields.io/badge/Linux-x64%20%7C%20ARM64-FCC624">
+  <img alt="macOS RC2" src="https://img.shields.io/badge/macOS-RC2%20Intel%20%7C%20Apple%20Silicon-555555">
 </p>
 
-**Toastify Reloaded** is a modern continuation of the classic Toastify experience for Spotify on Windows and Linux.
+**Toastify Reloaded** is a modern continuation of the classic Toastify experience for Spotify on Windows, Linux and macOS.
 
 The project keeps the recognizable Toastify workflow and notification style while replacing obsolete integration points with modern platform media controls, global hotkeys, Spicetify/Lyrics support, automatic repair after Spotify updates, installable releases, dark mode, toast themes, adaptive song timeline controls, animations and multi-monitor positioning.
 
 > **Independent community project.** Toastify Reloaded is not affiliated with Spotify AB and is not an official release maintained by the original Toastify developers.
 
-**Current stable Windows release:** `v.1.3.5`
-**Current stable Linux release:** `v1.4.0-linux`
+| Platform | Prepared release | Channel |
+|---|---|---|
+| Windows | `v1.3.6` | Stable |
+| Linux | `v1.4.1-linux` | Stable |
+| macOS | `v1.5.0-macos-rc.2` | Release candidate; not stable |
+
+These releases are prepared for publication. The versioned links below become available after their release checks pass. Use [GitHub Releases](https://github.com/MarliusLab/Toastify-Reloaded/releases) for packages already published. Existing tags are preserved.
 
 
 ---
 
 ## Download
 
-### Windows — stable
+### Windows — stable 1.3.6
 
-[Download Toastify Reloaded from GitHub Releases](https://github.com/MarliusLab/Toastify-Reloaded/releases)
+[Windows v1.3.6 release page after publication](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.3.6)
 
 Windows installer packages:
 
 - **Windows x64** — `ToastifyReloaded-Setup-win-x64.exe`
 - **Windows ARM64** — `ToastifyReloaded-Setup-win-arm64.exe`
 
-Current stable Windows release: **v.1.3.5**.
+Version 1.3.6 fixes recognition of legacy Windows tags such as `v.1.3.5` during update checks. Existing settings and the installer upgrade path are preserved.
 
-### Linux — stable 1.4.0
+### Linux — stable 1.4.1
 
-**[Download Toastify Reloaded Linux v1.4.0 stable release](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.4.0-linux)**
+[Linux v1.4.1 release page after publication](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.4.1-linux)
 
-The first stable Linux line targets functional parity with the Windows v1.3.4 feature set while using native Linux backends.
+The Linux stable line retains the Windows v1.3.4 feature baseline through native Linux backends. Version 1.4.1 adds clickable toast titles and artists that open the displayed track in Spotify.
 
 Stable Linux tag:
 
 ```text
-v1.4.0-linux
+v1.4.1-linux
 ```
 
 Linux packages:
@@ -61,17 +67,27 @@ Linux packages:
 **x64**
 
 - `ToastifyReloaded-Linux-x64.AppImage`
-- `toastify-reloaded_1.4.0_amd64.deb`
+- `toastify-reloaded_1.4.1_amd64.deb`
 - `ToastifyReloaded-Linux-x64.tar.gz`
 
 **ARM64**
 
-- `toastify-reloaded_1.4.0_arm64.deb`
+- `toastify-reloaded_1.4.1_arm64.deb`
 - `ToastifyReloaded-Linux-arm64.tar.gz`
 
 Release checksums are published as `SHA256SUMS.txt`.
 
 Both architectures are built automatically through GitHub Actions. The x64 pipeline also runs the headless release self-test, an Avalonia GUI smoke test, package validation and AppImage structure checks before artifacts are accepted.
+
+### macOS — 1.5.0 RC2
+
+[macOS RC2 release page after publication](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.5.0-macos-rc.2)
+
+- **Apple Silicon:** `ToastifyReloaded-macOS-arm64.dmg` or `ToastifyReloaded-macOS-arm64.zip`
+- **Intel:** `ToastifyReloaded-macOS-x64.dmg` or `ToastifyReloaded-macOS-x64.zip`
+- Checksums: `SHA256SUMS-macOS.txt`
+
+RC2 includes clickable toast titles/artists and the corrected macOS self-test and DMG packaging. It remains a prerelease while real Spotify interaction, permissions, updater behavior and both Mac architectures receive interactive acceptance testing. CI currently verifies ad-hoc signatures; this does not establish Developer ID signing, notarization or Gatekeeper acceptance. See [macOS installation, permissions and signing](docs/MACOS.md) and [verified platform status](docs/PLATFORM_STATUS.md).
 
 ---
 
@@ -347,21 +363,22 @@ Version **1.3.0** is the largest Reloaded UI and customization update so far.
 
 ---
 
-# Linux — stable v1.4.0-linux
+# Linux — stable v1.4.1-linux
 
 The Linux port is maintained separately from the existing Windows/WPF application and is built with **Avalonia**.
 
 Spotify playback and metadata use **MPRIS** through `playerctl`. Global shortcut handling uses `xbindkeys` on X11 and the **XDG Global Shortcuts Portal** on Wayland.
 
-## Linux 1.4.0 feature set
+## Linux 1.4.1 feature set
 
-Linux 1.4.0 includes:
+Linux 1.4.1 includes:
 
 - Play / Pause, Previous and Next;
 - Seek ±10 seconds;
 - Spotify volume and mute controls;
 - automatic Spotify/MPRIS player detection and reconnection;
 - automatic toast on track change;
+- clickable title/artist links opening the track displayed in the toast;
 - album artwork and Toastify icon fallback;
 - adaptive and fixed toast geometry;
 - optional progress bar and song time / duration;
@@ -417,14 +434,14 @@ Settings can also be exported and imported as JSON from the application.
 
 ```text
 ToastifyReloaded-Linux-x64.AppImage
-toastify-reloaded_1.4.0_amd64.deb
+toastify-reloaded_1.4.1_amd64.deb
 ToastifyReloaded-Linux-x64.tar.gz
 ```
 
 ### ARM64
 
 ```text
-toastify-reloaded_1.4.0_arm64.deb
+toastify-reloaded_1.4.1_arm64.deb
 ToastifyReloaded-Linux-arm64.tar.gz
 ```
 
@@ -458,9 +475,9 @@ For Linux-specific build and runtime details see `docs/LINUX.md`.
 
 # Windows / Linux parity
 
-Linux **v1.4.0-linux** targets functional parity with the Windows **v1.3.4** baseline, using Linux-native implementations where Windows APIs do not exist.
+Linux **v1.4.1-linux** retains functional parity with the historical Windows **v1.3.4** baseline, using Linux-native implementations where Windows APIs do not exist. The title/artist track links are an additional Linux/macOS feature.
 
-| Area | Windows v1.3.4 | Linux 1.4.0 |
+| Area | Windows v1.3.4 baseline | Linux 1.4.1 |
 |---|---:|---:|
 | Spotify playback / metadata | ✅ | ✅ MPRIS |
 | Global hotkeys | ✅ | ✅ X11 / Wayland Portal |
@@ -825,7 +842,7 @@ Toastify Reloaded does **not** require:
 - a Spotify developer Client ID;
 - a Spotify developer Client Secret.
 
-Playback information is obtained from the platform media session: Windows media sessions on Windows and MPRIS on Linux.
+Playback information is obtained from Windows media sessions on Windows, MPRIS on Linux and Spotify AppleScript metadata on macOS.
 
 User settings are stored locally.
 
@@ -840,8 +857,9 @@ Network access is mainly used for update checks and components such as Spicetify
 | Windows 11 x64 | Supported |
 | Windows 10 x64 | Supported |
 | Windows ARM64 | Installer/build available |
-| Linux x64 | Stable v1.4.0 — AppImage / `.deb` / tar.gz |
-| Linux ARM64 | Stable v1.4.0 — `.deb` / tar.gz |
+| Linux x64 | Stable 1.4.1 line — AppImage / `.deb` / tar.gz |
+| Linux ARM64 | Stable 1.4.1 line — `.deb` / tar.gz; native runtime validation pending |
+| macOS Intel / Apple Silicon | 1.5.0 RC2 — ZIP / DMG; interactive acceptance and signing/notarization pending |
 | Spotify desktop client | Supported |
 | Global hotkeys | Supported |
 | Multiple monitors | Supported |
@@ -995,7 +1013,7 @@ Requirements:
 
 - .NET 8 SDK
 - common Avalonia Linux runtime libraries
-- `playerctl`
+- `playerctl` and `xdg-utils`
 - `xbindkeys` for X11 shortcuts
 - XDG Desktop Portal for Wayland shortcuts
 - `dpkg-deb` for `.deb` packaging
@@ -1042,7 +1060,10 @@ Toastify-Reloaded/
 │  │  ├─ Native/
 │  │  ├─ Resources/
 │  │  └─ Services/
-│  └─ ToastifyReloaded.Linux/
+│  ├─ ToastifyReloaded.Linux/
+│  ├─ ToastifyReloaded.Mac/
+│  └─ ToastifyReloaded.Shared/
+├─ tests/
 ├─ CHANGELOG.md
 ├─ CONTRIBUTING.md
 ├─ LICENSE
@@ -1055,23 +1076,23 @@ Toastify-Reloaded/
 ---
 
 ## Platform status
-### Click a toast title or artist (development)
+### Click a toast title or artist
 
-On Linux and macOS, the title and artist are keyboard accessible links to the **track shown in that toast**. The player supplies a Spotify catalog track URI or URL in the same metadata snapshot; a change of song cannot attach another track to the displayed text. Toastify sends a navigation link and does not issue a play/pause or seek command. Spotify determines how the link is handled.
+Linux 1.4.1 and macOS 1.5.0 RC2 include keyboard accessible title and artist links to the **track shown in that toast**. The player supplies a Spotify catalog track URI or URL in the same metadata snapshot; a change of song cannot attach another track to the displayed text. Toastify sends a navigation link and does not issue a play/pause or seek command. Spotify determines how the link is handled.
 
 Toastify tries Spotify first, then a canonical HTTPS track link if the native handler fails. Local files, advertisements and missing or invalid track identifiers only activate Spotify. Untrusted URLs and title searches are never launched. No new setting or configuration migration is required; existing settings, themes, hotkeys and playback controls remain available.
 
-This feature is unreleased. See [verified platform status and remaining validation](docs/PLATFORM_STATUS.md) for the distinction between automated checks and real Spotify/desktop tests. The Spotify URI and ID formats follow [Spotify documentation](https://developer.spotify.com/documentation/web-api/concepts/spotify-uris-ids).
+Windows 1.3.6 contains updater fixes; it does not include the Linux/macOS track links. See [verified platform status and remaining validation](docs/PLATFORM_STATUS.md) for the distinction between automated checks and real Spotify/desktop tests. The Spotify URI and ID formats follow [Spotify documentation](https://developer.spotify.com/documentation/web-api/concepts/spotify-uris-ids).
 
 | Platform | Status | Distribution |
 |---|---|---|
-| Windows x64 | Stable — v.1.3.5 | Installer |
-| Windows ARM64 | Stable — v.1.3.5 | Installer |
-| Linux x64 | Stable — v1.4.0 | AppImage / `.deb` / tar.gz |
-| Linux ARM64 | Stable — v1.4.0 | `.deb` / tar.gz |
-| macOS x64 / Apple Silicon | RC1 code; stable validation pending | ZIP / DMG build targets |
+| Windows x64 | Stable 1.3.6 release prepared | Installer |
+| Windows ARM64 | Stable 1.3.6 release prepared | Installer |
+| Linux x64 | Stable 1.4.1 release prepared | AppImage / `.deb` / tar.gz |
+| Linux ARM64 | Stable 1.4.1 release prepared; cross-built | `.deb` / tar.gz |
+| macOS x64 / Apple Silicon | 1.5.0 RC2 release prepared; stable acceptance pending | ZIP / DMG |
 
-Linux stable tag: **`v1.4.0-linux`**.
+Prepared tags: **`v1.3.6`**, **`v1.4.1-linux`**, **`v1.5.0-macos-rc.2`**.
 
 ---
 

@@ -27,7 +27,7 @@ public static class LinuxSelfTestService
         try
         {
             Console.WriteLine(
-                "Toastify Reloaded Linux 1.4.0 self-test");
+                "Toastify Reloaded Linux 1.4.1 self-test");
 
             Console.WriteLine(
                 $"Runtime: {Environment.Version}");
@@ -37,7 +37,7 @@ public static class LinuxSelfTestService
 
             Check(
                 LinuxUpdateService.CurrentTag ==
-                "v1.4.0-linux",
+                "v1.4.1-linux",
                 "stable version constant");
 
             var preview4 =
@@ -63,6 +63,21 @@ public static class LinuxSelfTestService
             var nextStable =
                 LinuxUpdateService.ParseTag(
                     "v1.4.1-linux");
+
+            Check(
+                LinuxUpdateService.CurrentVersion == nextStable &&
+                stable is not null &&
+                LinuxUpdateService.IsEligibleUpdateCandidate(stable, LinuxUpdateService.CurrentVersion),
+                "1.4.0 stable upgrades to the current 1.4.1 patch release");
+
+            var futureStable = LinuxUpdateService.ParseTag("v1.4.2-linux");
+            var futurePreview = LinuxUpdateService.ParseTag("v1.4.2-linux-preview.1");
+            Check(
+                futureStable is not null && futurePreview is not null &&
+                !LinuxUpdateService.IsEligibleUpdateCandidate(LinuxUpdateService.CurrentVersion, LinuxUpdateService.CurrentVersion) &&
+                LinuxUpdateService.IsEligibleUpdateCandidate(LinuxUpdateService.CurrentVersion, futureStable) &&
+                !LinuxUpdateService.IsEligibleUpdateCandidate(LinuxUpdateService.CurrentVersion, futurePreview),
+                "1.4.1 rejects itself and future previews while accepting later stable patches");
 
             Check(
                 preview4 is not null &&

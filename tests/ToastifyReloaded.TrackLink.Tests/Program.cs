@@ -12,6 +12,16 @@ void Check(bool condition, string name)
     Console.WriteLine("PASS: " + name);
 }
 
+Check(WindowsReleaseVersion.Normalize("v.1.3.5") == "1.3.5", "legacy dotted-v Windows release tag is recognized");
+Check(WindowsReleaseVersion.Normalize("v1.3.6") == "1.3.6", "current Windows release tag is recognized");
+Check(WindowsReleaseVersion.Normalize(" V.1.3.5 ") == "1.3.5", "Windows version prefix is case-insensitive and trimmed");
+Check(WindowsReleaseVersion.Normalize("1.3.6.0") == "1.3.6", "Windows assembly revision normalizes to release version");
+Check(WindowsReleaseVersion.Normalize("v1.3.6-preview.1") == "1.3.6", "Windows version normalization retains prior suffix behavior");
+Check(Version.Parse(WindowsReleaseVersion.Normalize("v.1.3.5")) <
+    Version.Parse(WindowsReleaseVersion.Normalize("v1.3.6")), "Windows update comparison works across legacy and current tags");
+Check(!Version.TryParse(WindowsReleaseVersion.Normalize("v..1.3.5"), out _), "malformed repeated Windows tag prefix remains invalid");
+Check(!Version.TryParse(WindowsReleaseVersion.Normalize("invalid-tag"), out _), "non-version Windows tags remain invalid");
+
 var valid = new[]
 {
     uri, " SPOTIFY:TRACK:" + id + " ",

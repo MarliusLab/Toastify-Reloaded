@@ -7,44 +7,88 @@ on:
       - "v*-macos-preview.*"
       - "v*-macos-rc.*"
 
+  workflow_run:
+    workflows: ["macOS Build"]
+    types: [completed]
+    branches: [main]
+
+concurrency:
+  group: publish-macos
+  cancel-in-progress: false
+
 jobs:
   release-macos:
+    if: >-
+      github.event_name == 'push' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: macos-latest
     permissions:
       contents: write
 
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+          persist-credentials: false
+
+      - name: Validate explicit release plan and trusted source commit
+        id: prepare
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/prepare-release.py macos
 
       - uses: actions/setup-dotnet@v5
+        if: steps.prepare.outputs.publish == 'true'
         with:
           dotnet-version: "8.0.x"
 
       - name: Prepare scripts
+        if: steps.prepare.outputs.publish == 'true'
         run: chmod +x scripts/*macos*.sh
 
-      - name: Verify tag matches the application build
+      - name: Verify tag, application version and release notes
+        if: steps.prepare.outputs.publish == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          grep -Fq "public const string CurrentTag = \"${GITHUB_REF_NAME}\";" \
+          grep -Fq "public const string CurrentTag = \"${RELEASE_TAG}\";" \
             src/ToastifyReloaded.Mac/Services/MacUpdateService.cs
+          python3 - <<'PY'
+          import os
+          import re
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          version = ET.parse("src/ToastifyReloaded.Mac/ToastifyReloaded.Mac.csproj").findtext("./PropertyGroup/Version")
+          tag = os.environ["RELEASE_TAG"]
+          assert version and re.fullmatch(r"v" + re.escape(version) + r"-macos(?:-(?:preview|rc)\.[1-9][0-9]*)?", tag), "macOS tag and project version differ"
+          assert Path("docs/releases", tag + ".md").is_file(), "Version-specific release notes are missing"
+          print("PASS: tag, application version and release notes match:", tag)
+          PY
 
       - name: Verify Windows/Linux/macOS feature parity contract
+        if: steps.prepare.outputs.publish == 'true'
         run: python3 scripts/validate-macos-parity.py
 
       - name: Build and run native macOS self-test
+        if: steps.prepare.outputs.publish == 'true'
         run: ./scripts/test-macos-ci.sh
 
       - name: Test track links and safe launcher fallbacks
+        if: steps.prepare.outputs.publish == 'true'
         run: dotnet run --project tests/ToastifyReloaded.TrackLink.Tests -c Release
 
       - name: Publish Intel and Apple Silicon
+        if: steps.prepare.outputs.publish == 'true'
         run: |
           ./scripts/build-macos.sh osx-x64
           ./scripts/build-macos.sh osx-arm64
 
       - name: Configure optional Developer ID signing
+        if: steps.prepare.outputs.publish == 'true'
         env:
           APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -53,11 +97,13 @@ jobs:
         run: ./scripts/setup-macos-signing.sh
 
       - name: Create signed app bundles
+        if: steps.prepare.outputs.publish == 'true'
         run: |
           ./scripts/package-macos-app.sh osx-x64
           ./scripts/package-macos-app.sh osx-arm64
 
       - name: Notarize when Apple credentials are configured
+        if: steps.prepare.outputs.publish == 'true'
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
@@ -67,6 +113,7 @@ jobs:
           ./scripts/notarize-macos-app.sh "dist/macos/osx-arm64/Toastify Reloaded.app"
 
       - name: Validate app bundles
+        if: steps.prepare.outputs.publish == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -80,9 +127,11 @@ jobs:
           file "$ARM_APP/Contents/MacOS/ToastifyReloaded.Mac" | grep -Eiq 'arm64|aarch64'
 
       - name: Native macOS app startup smoke test
+        if: steps.prepare.outputs.publish == 'true'
         run: ./scripts/test-macos-gui.sh
 
       - name: Package release ZIP and DMG
+        if: steps.prepare.outputs.publish == 'true'
         run: |
           ./scripts/package-macos-zip.sh osx-x64
           ./scripts/package-macos-zip.sh osx-arm64
@@ -90,9 +139,17 @@ jobs:
           ./scripts/package-macos-dmg.sh osx-arm64
 
       - name: Generate SHA-256 checksums
+        if: steps.prepare.outputs.publish == 'true'
         shell: bash
         run: |
           set -euo pipefail
+          for ARTIFACT in \
+            dist/ToastifyReloaded-macOS-x64.zip \
+            dist/ToastifyReloaded-macOS-arm64.zip \
+            dist/ToastifyReloaded-macOS-x64.dmg \
+            dist/ToastifyReloaded-macOS-arm64.dmg; do
+            test -s "$ARTIFACT"
+          done
           (
             cd dist
             shasum -a 256 \
@@ -105,11 +162,16 @@ jobs:
           cat dist/SHA256SUMS-macOS.txt
 
       - name: Publish GitHub release
+        if: steps.prepare.outputs.publish == 'true'
         uses: softprops/action-gh-release@v3
         with:
-          name: Toastify Reloaded ${{ github.ref_name }}
-          prerelease: ${{ contains(github.ref_name, '-preview.') || contains(github.ref_name, '-rc.') }}
-          generate_release_notes: true
+          tag_name: ${{ steps.prepare.outputs.release_tag }}
+          target_commitish: ${{ steps.prepare.outputs.release_sha }}
+          body_path: ${{ steps.prepare.outputs.notes_path }}
+          name: Toastify Reloaded ${{ steps.prepare.outputs.release_tag }}
+          prerelease: ${{ contains(steps.prepare.outputs.release_tag, '-preview.') || contains(steps.prepare.outputs.release_tag, '-rc.') }}
+          make_latest: false
+          fail_on_unmatched_files: true
           files: |
             dist/ToastifyReloaded-macOS-x64.zip
             dist/ToastifyReloaded-macOS-arm64.zip

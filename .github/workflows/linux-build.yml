@@ -7,6 +7,9 @@ on:
       - "src/ToastifyReloaded.Linux/**"
       - "src/ToastifyReloaded.Shared/**"
       - "tests/ToastifyReloaded.TrackLink.Tests/**"
+      - "docs/releases/**"
+      - "scripts/prepare-release.py"
+      - "scripts/test-prepare-release.py"
       - "packaging/linux/**"
       - "scripts/build-linux*.sh"
       - "scripts/package-linux-*.sh"
@@ -19,6 +22,9 @@ on:
       - "src/ToastifyReloaded.Linux/**"
       - "src/ToastifyReloaded.Shared/**"
       - "tests/ToastifyReloaded.TrackLink.Tests/**"
+      - "docs/releases/**"
+      - "scripts/prepare-release.py"
+      - "scripts/test-prepare-release.py"
       - "packaging/linux/**"
       - "scripts/build-linux*.sh"
       - "scripts/package-linux-*.sh"
@@ -50,6 +56,9 @@ jobs:
             libxrender1 libxrandr2 libxi6 libgl1 libglib2.0-0 \
             desktop-file-utils curl xvfb xauth file
 
+      - name: Test release authorization and immutable tags
+        run: python scripts/test-prepare-release.py
+
       - name: Test track links and safe launcher fallbacks
         run: dotnet run --project tests/ToastifyReloaded.TrackLink.Tests -c Release
 
@@ -66,7 +75,7 @@ jobs:
           grep -q 'GetSelfAndLogicalDescendants' src/ToastifyReloaded.Linux/Services/LocalizationService.cs
           grep -q 'SaveFilePickerAsync' src/ToastifyReloaded.Linux/MainWindow.axaml.cs
           grep -q 'CompatibilityGuardService' src/ToastifyReloaded.Linux/MainWindow.axaml.cs
-          grep -q 'api.github.com/repos/Marlius92/Toastify-Reloaded/releases' src/ToastifyReloaded.Linux/Services/LinuxUpdateService.cs
+          grep -q 'api.github.com/repos/MarliusLab/Toastify-Reloaded/releases' src/ToastifyReloaded.Linux/Services/LinuxUpdateService.cs
           grep -q 'CustomTopColor' src/ToastifyReloaded.Linux/Models/LinuxSettings.cs
           grep -q 'ToastPosition' src/ToastifyReloaded.Linux/Models/LinuxSettings.cs
           grep -q 'MonitorCombo' src/ToastifyReloaded.Linux/MainWindow.axaml

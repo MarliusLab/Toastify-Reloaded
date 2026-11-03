@@ -13,7 +13,7 @@ namespace ToastifyReloaded.Services;
 
 public sealed class UpdateService
 {
-    private const string Owner = "Marlius92";
+    private const string Owner = "MarliusLab";
     private const string Repository = "Toastify-Reloaded";
     private static readonly HttpClient Client = CreateClient();
 
@@ -197,20 +197,7 @@ public sealed class UpdateService
     }
 
     private static string NormalizeVersion(string raw)
-    {
-        var value = raw.Trim();
-        if (value.StartsWith('v') || value.StartsWith('V'))
-            value = value[1..];
-
-        var dash = value.IndexOf('-');
-        if (dash >= 0)
-            value = value[..dash];
-
-        if (Version.TryParse(value, out var parsed))
-            return $"{parsed.Major}.{parsed.Minor}.{Math.Max(parsed.Build, 0)}";
-
-        return value;
-    }
+        => ToastifyReloaded.Shared.WindowsReleaseVersion.Normalize(raw);
 
     private sealed class GitHubRelease
     {

@@ -1,19 +1,21 @@
 # Toastify Reloaded for macOS
 
-## Current target
+## Current release candidate
 
-**Fast-track Preview 1:** `v1.5.0-macos-preview.1`
+**Prepared RC2:** `v1.5.0-macos-rc.2` — a prerelease, not the macOS stable release.
 
-The macOS port is intentionally based on the same Avalonia UI and configuration model used by the completed Linux port. The goal is not to redesign Toastify Reloaded: all normal user-facing settings and behavior remain aligned, while only operating-system backends are replaced where macOS requires a different implementation.
+[RC2 release page after publication](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.5.0-macos-rc.2). Until the release workflow has published it, use [GitHub Releases](https://github.com/MarliusLab/Toastify-Reloaded/releases) to inspect available packages. The existing `v1.5.0-macos-rc.1` tag remains unchanged.
+
+The macOS port uses the same Avalonia UI and configuration model as Linux. Shared user-facing settings remain aligned, with macOS backends for Spotify, global shortcuts and login integration. Existing settings, themes, hotkeys and playback controls are preserved by RC2.
 
 ## Architectures and packages
 
-The CI publishes both supported 64-bit Mac architectures:
+CI builds and packages both supported 64-bit Mac architectures:
 
 - Apple Silicon: `osx-arm64`
 - Intel: `osx-x64`
 
-Preview/release artifacts:
+RC2 release artifacts:
 
 - `ToastifyReloaded-macOS-arm64.dmg`
 - `ToastifyReloaded-macOS-arm64.zip`
@@ -23,11 +25,14 @@ Preview/release artifacts:
 
 The ZIP packages are also the assets used by the in-app architecture-aware updater.
 
+Choose the architecture matching the Mac, verify it against `SHA256SUMS-macOS.txt`, and copy the app from the DMG or extracted ZIP into Applications. An ad-hoc signed package can require macOS approval and is not equivalent to a Developer ID signed, notarized download. Follow the normal macOS approval process only for a build you trust; RC2 does not claim Gatekeeper acceptance from CI signature verification alone.
+
 ## Feature contract
 
-Preview 1 carries the completed desktop feature set across to macOS:
+RC2 includes the desktop feature set and the new track links:
 
 - classic Toastify-style notification;
+- clickable, keyboard accessible title/artist links to the track displayed in the toast;
 - album artwork with Toastify icon fallback and no-image mode;
 - adaptive toast width and manual width controls;
 - optional playback progress and song time / duration;
@@ -63,6 +68,8 @@ macOS uses AppleScript through the system `osascript` executable to read Spotify
 
 On first use, macOS can request permission for Toastify Reloaded to automate Spotify. The app bundle includes `NSAppleEventsUsageDescription`, and Developer-ID/hardened-runtime builds include the Apple Events entitlement.
 
+Title/artist links use the validated Spotify catalog identifier captured in the same AppleScript metadata snapshot. The opener tries the Spotify URI, then the canonical HTTPS track page if the handler fails. Ads, local files and missing/invalid identifiers only activate Spotify. No title search or arbitrary metadata URL is launched. Toastify sends navigation links without issuing a play/pause or seek command; Spotify controls how navigation is handled. The toast stays visible during bounded opener attempts and reports failures.
+
 ### Global hotkeys
 
 Global hotkeys use SharpHook/libuiohook. macOS requires Accessibility permission for the process before a global keyboard hook can operate.
@@ -91,7 +98,7 @@ Compatibility Guard retains the same high-level behavior as Linux: detect a Spot
 
 The packaging pipeline has two modes:
 
-1. **Preview / no Apple credentials:** CI creates an ad-hoc signed `.app`, ZIP and DMG. This is sufficient for build validation, but a downloaded public build can still trigger Gatekeeper warnings.
+1. **No Apple credentials:** CI creates an ad-hoc signed `.app`, ZIP and DMG. This is sufficient for build validation, but a downloaded public build can still trigger Gatekeeper warnings. The recorded implementation CI used this mode.
 2. **Developer ID configured:** CI can import a Developer ID Application certificate, use Hardened Runtime with the minimum required entitlements, and optionally notarize/staple the app when Apple notarization credentials are also configured.
 
 The signing script explicitly signs nested Mach-O files before signing the `.app` bundle and does not use `codesign --deep`.
@@ -115,38 +122,41 @@ APPLE_TEAM_ID
 APPLE_APP_SPECIFIC_PASSWORD
 ```
 
-These secrets are not required for Preview 1 CI compilation or packaging.
+These secrets are not required for RC2 compilation or packaging. Their optional support is not evidence that a particular release was Developer ID signed or notarized; record the actual signing/notarization result for that release before advertising it as such.
 
 ## Build from source
 
 On macOS with the .NET 8 SDK:
 
 ```bash
+dotnet run --project tests/ToastifyReloaded.TrackLink.Tests -c Release
+python3 scripts/validate-macos-parity.py
 ./scripts/test-macos-ci.sh
 ./scripts/build-macos.sh osx-arm64
 ./scripts/package-macos-app.sh osx-arm64
+./scripts/test-macos-gui.sh
 ./scripts/package-macos-zip.sh osx-arm64
 ./scripts/package-macos-dmg.sh osx-arm64
 ```
 
-For Intel replace `osx-arm64` with `osx-x64`.
+For Intel replace `osx-arm64` with `osx-x64`. Run the GUI smoke test on the matching native architecture; it checks 10-second startup, not Spotify interaction, permissions or visual correctness.
 
-## Fast-track release path
+## RC2 acceptance and path to stable
 
 ```text
-v1.5.0-macos-preview.1
+v1.5.0-macos-rc.2 (prerelease)
         ↓
-CI compile/package validation
+native build, regression, self-test, startup and ZIP/DMG gates
         ↓
-real Mac + Spotify permission/runtime validation
+real Intel + Apple Silicon Spotify/permission/updater acceptance
         ↓
-fix only confirmed blockers
+record distribution signing/notarization decision and results
         ↓
-v1.5.0-macos-rc.1
-        ↓
-final release gate
+resolve confirmed blockers and approve stable promotion
         ↓
 v1.5.0-macos
 ```
 
-Preview 1 is deliberately feature-complete. The preview/RC stages are for validating platform integration, packaging, permissions and updater behavior rather than adding a second feature-development cycle.
+The obsolete Preview 1 version assertion that blocked RC1 has been fixed. DMG packaging now reserves explicit space and verifies the resulting image. Successful native CI for the earlier implementation is recorded in [PLATFORM_STATUS.md](PLATFORM_STATUS.md); the prepared RC2 tag still needs its own release gates.
+
+Before stable promotion, exercise signed-in Spotify metadata, title and artist clicks, transport controls, Automation and Accessibility permissions, global shortcuts, artwork/themes/timeline, scaling/multiple monitors, Spicetify/Lyrics repair and an actual updater transition on Intel and Apple Silicon. Earlier CI executed native startup on Apple Silicon and inspected the Intel build; that does not establish interactive or Intel runtime acceptance. These checks remain open until their results are recorded.

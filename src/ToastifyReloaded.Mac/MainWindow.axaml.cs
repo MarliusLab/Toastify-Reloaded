@@ -194,7 +194,7 @@ public partial class MainWindow : Window
         var track = await _spotify.GetTrackAsync()
             ?? new MacTrackInfo(
                 "Toastify Reloaded macOS",
-                "macOS 1.5.0 Preview 1",
+                MacUpdateService.CurrentDisplayVersion,
                 "Classic Toastify experience",
                 string.Empty,
                 76,
@@ -481,7 +481,7 @@ public partial class MainWindow : Window
                 Environment.NewLine,
                 new[]
                 {
-                    "Toastify Reloaded macOS: 1.5.0 Preview 1",
+                    $"Toastify Reloaded {MacUpdateService.CurrentDisplayVersion}",
                     $"OS: {Environment.OSVersion}",
                     $"Architecture: {System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture}",
                     $"AppleScript / osascript: {(appleScriptAvailable ? "available" : "missing")}",
@@ -520,6 +520,7 @@ public partial class MainWindow : Window
     {
         _localization.Apply(this, _settings.Language);
         Title = "Toastify Reloaded — macOS";
+        Find<TextBlock>("FooterText").Text = MacUpdateService.CurrentDisplayVersion;
     }
 
     private string T(string key)

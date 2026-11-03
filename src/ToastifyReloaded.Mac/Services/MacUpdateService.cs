@@ -7,15 +7,26 @@ namespace ToastifyReloaded.Mac.Services;
 
 public sealed partial class MacUpdateService
 {
-    public const string CurrentTag = "v1.5.0-macos-rc.1";
+    public const string CurrentTag = "v1.5.0-macos-rc.2";
 
     public static readonly MacReleaseVersion CurrentVersion =
         ParseTag(CurrentTag)
         ?? throw new InvalidOperationException(
             "Invalid current macOS release tag.");
 
+    public static string CurrentDisplayVersion => FormatDisplayVersion(CurrentVersion);
+
+    internal static string FormatDisplayVersion(MacReleaseVersion version) =>
+        $"macOS {version.Major}.{version.Minor}.{version.Patch}" +
+        (version.Stage switch
+        {
+            MacReleaseStage.Preview => $" Preview {version.StageNumber}",
+            MacReleaseStage.ReleaseCandidate => $" RC{version.StageNumber}",
+            _ => ""
+        });
+
     private static readonly Uri ReleasesApi = new(
-        "https://api.github.com/repos/Marlius92/Toastify-Reloaded/releases?per_page=50");
+        "https://api.github.com/repos/MarliusLab/Toastify-Reloaded/releases?per_page=50");
 
     private readonly HttpClient _http;
 
