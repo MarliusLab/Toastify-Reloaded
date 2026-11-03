@@ -97,6 +97,10 @@ def check_remote(repository, tag, checked_sha, event_name, api):
     ref = api(f"repos/{repository}/git/ref/tags/{quote(tag, safe='')}")
     if ref is None:
         if release is not None:
+            if release.get("draft") and release.get("target_commitish") == checked_sha:
+                # Stable release actions can create a draft before creating its
+                # tag. Resume that draft only with explicit full-SHA provenance.
+                return True
             raise ValueError("Incomplete release has no verifiable tag")
         if event_name == "push":
             raise ValueError("Pushed release tag is missing")

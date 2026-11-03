@@ -89,6 +89,16 @@ class ReleaseGuardTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             guard.check_remote(REPO, "v1.4.1-linux", SHA, "workflow_run", api)
 
+    def test_draft_without_tag_requires_exact_full_source_sha(self):
+        for target in (SHA, "2" * 40, "main"):
+            def api(path):
+                return {"id": 1, "draft": True, "target_commitish": target} if "/releases/" in path else None
+            if target == SHA:
+                self.assertTrue(guard.check_remote(REPO, "v1.4.1-linux", SHA, "workflow_run", api))
+            else:
+                with self.assertRaises(ValueError):
+                    guard.check_remote(REPO, "v1.4.1-linux", SHA, "workflow_run", api)
+
     def test_existing_lightweight_tag_must_match(self):
         for target in (SHA, "2" * 40):
             def api(path):

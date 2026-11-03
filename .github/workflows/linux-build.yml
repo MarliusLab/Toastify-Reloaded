@@ -82,7 +82,7 @@ jobs:
           grep -q 'ToastFontCombo' src/ToastifyReloaded.Linux/MainWindow.axaml
           grep -q 'LinuxUpdateInstallerService' src/ToastifyReloaded.Linux/MainWindow.axaml.cs
           grep -q 'DownloadAndApplyAsync' src/ToastifyReloaded.Linux/Services/LinuxUpdateInstallerService.cs
-          grep -q 'v1.4.0-linux' src/ToastifyReloaded.Linux/Services/LinuxUpdateService.cs
+          grep -q 'public const string CurrentTag =' src/ToastifyReloaded.Linux/Services/LinuxUpdateService.cs
           grep -q 'ReleaseCandidate' src/ToastifyReloaded.Linux/Models/LinuxReleaseVersion.cs
           grep -q 'SELF-TEST RESULT: PASS' src/ToastifyReloaded.Linux/Services/LinuxSelfTestService.cs
           grep -q 'Custom' src/ToastifyReloaded.Linux/Models/ToastThemePalette.cs
