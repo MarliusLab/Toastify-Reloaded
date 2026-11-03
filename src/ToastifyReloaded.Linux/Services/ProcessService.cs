@@ -27,7 +27,18 @@ public sealed class ProcessService
         var stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
         var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
 
-        await process.WaitForExitAsync(cancellationToken);
+        try
+        {
+            await process.WaitForExitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            // Stop the hung helper only; a desktop application it launched
+            // must remain independent and must never be terminated here.
+            try { process.Kill(entireProcessTree: false); }
+            catch (InvalidOperationException) { }
+            throw;
+        }
 
         return (
             process.ExitCode,

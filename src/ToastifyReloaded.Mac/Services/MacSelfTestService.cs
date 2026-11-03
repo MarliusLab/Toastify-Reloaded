@@ -28,14 +28,19 @@ public static class MacSelfTestService
         {
             Environment.SetEnvironmentVariable("TOASTIFY_RELOADED_CONFIG_DIR", tempRoot);
 
-            Console.WriteLine("Toastify Reloaded macOS 1.5.0 Preview 1 self-test");
+            Console.WriteLine($"Toastify Reloaded macOS {MacUpdateService.CurrentTag} self-test");
             Console.WriteLine($"Runtime: {Environment.Version}");
             Console.WriteLine($"OS: {Environment.OSVersion}");
             Console.WriteLine($"Architecture: {RuntimeInformation.ProcessArchitecture}");
 
-            Check(
-                MacUpdateService.CurrentTag == "v1.5.0-macos-preview.1",
-                "preview version constant");
+            var assemblyVersion = typeof(MacSelfTestService).Assembly.GetName().Version!;
+            var currentVersion = MacUpdateService.ParseTag(MacUpdateService.CurrentTag);
+            Check(currentVersion is not null &&
+                  currentVersion == MacUpdateService.CurrentVersion &&
+                  currentVersion.Major == assemblyVersion.Major &&
+                  currentVersion.Minor == assemblyVersion.Minor &&
+                  currentVersion.Patch == assemblyVersion.Build,
+                "current macOS tag is valid and matches assembly version");
 
             var preview1 = MacUpdateService.ParseTag("v1.5.0-macos-preview.1");
             var preview2 = MacUpdateService.ParseTag("v1.5.0-macos-preview.2");
@@ -151,7 +156,9 @@ public static class MacSelfTestService
                 "360000",
                 "76.5",
                 "playing",
-                "spotify:image:abc123"
+                "spotify:image:abc123",
+                "spotify:track:4uLU6hMCjMI75M1A2tKUQC",
+                "toastify-track-v1"
             });
             var track = SpotifyAppleScriptService.ParseTrackPayload(payload);
             Check(track is not null &&
@@ -159,8 +166,46 @@ public static class MacSelfTestService
                   Math.Abs(track.DurationSeconds - 360) < 0.01 &&
                   Math.Abs(track.PositionSeconds - 76.5) < 0.01 &&
                   track.IsPlaying &&
-                  track.ArtworkUrl == "https://i.scdn.co/image/abc123",
+                  track.ArtworkUrl == "https://i.scdn.co/image/abc123" &&
+                  track.TrackUri == "spotify:track:4uLU6hMCjMI75M1A2tKUQC" &&
+                  track.Identity == track.TrackUri,
                 "Spotify AppleScript metadata parser");
+
+            var legacyPayload = string.Join('\u001f', payload.Split('\u001f').Take(7));
+            Check(SpotifyAppleScriptService.ParseTrackPayload(legacyPayload)?.TrackUri == "" &&
+                  SpotifyAppleScriptService.ParseTrackPayload(legacyPayload + "\u001f\u001ftoastify-track-v1")?.TrackUri == "",
+                "missing track ID stays absent without reusing an older ID");
+            Check(SpotifyAppleScriptService.ParseTrackPayload(legacyPayload + "\u001fhttps://evil.invalid/track\u001ftoastify-track-v1")?.TrackUri == "" &&
+                  SpotifyAppleScriptService.ParseTrackPayload(legacyPayload + "\u001fspotify:track:4uLU6hMCjMI75M1A2tKUQC\n\u001ftoastify-track-v1")?.TrackUri == "" &&
+                  SpotifyAppleScriptService.ParseTrackPayload(payload + "\u001fextra") is null,
+                "malformed IDs and ambiguous metadata payloads rejected");
+            Check(track is not null &&
+                  (track with { TrackUri = "spotify:track:0VjIjW4GlUZAMYd2vXMi3b" }).Identity != track.Identity,
+                "identical track labels with different Spotify IDs remain distinct");
+
+            var directOpen = await ProbeOpenAsync(track?.TrackUri, 0);
+            Check(directOpen.Result.Success && directOpen.Result.OpenedTrack &&
+                  directOpen.Calls.Count == 1 && directOpen.Calls[0].File == "/usr/bin/open" &&
+                  directOpen.Calls[0].Arguments.SequenceEqual(new[] { "-a", "Spotify", track!.TrackUri }),
+                "track opener passes exact snapshot URI as a separate argument");
+
+            var webOpen = await ProbeOpenAsync(track?.TrackUri, 1, 0);
+            Check(webOpen.Result.OpenedTrack && webOpen.Calls.Count == 2 &&
+                  webOpen.Calls[1].Arguments.SequenceEqual(new[] { "https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC" }),
+                "native handler failure falls back to canonical Spotify HTTPS");
+
+            var missingOpen = await ProbeOpenAsync(null, 0);
+            var unsafeOpen = await ProbeOpenAsync("spotify:local:artist:$(touch /tmp/unsafe)", 0);
+            Check(missingOpen.Result.Success && !missingOpen.Result.OpenedTrack &&
+                  missingOpen.Calls.Count == 1 && unsafeOpen.Calls.Count == 1 &&
+                  unsafeOpen.Calls[0].Arguments.SequenceEqual(new[] { "-a", "Spotify" }),
+                "missing and local track IDs only activate Spotify without search or arbitrary URLs");
+
+            var failedOpen = await ProbeOpenAsync(track?.TrackUri, 1, 1, 1);
+            var thrownOpen = await ProbeOpenAsync(track?.TrackUri, -1, -1, -1);
+            Check(!failedOpen.Result.Success && failedOpen.Calls.Count == 3 &&
+                  !thrownOpen.Result.Success && thrownOpen.Calls.Count == 3,
+                "all launcher failures and exceptions produce a safe failure result");
 
             Check(MacGlobalHotkeyService.ParseShortcut("Ctrl+Alt+Space") is not null &&
                   MacGlobalHotkeyService.ParseShortcut("Cmd+Shift+Right") is not null &&
@@ -230,5 +275,20 @@ public static class MacSelfTestService
             : $"SELF-TEST RESULT: FAIL ({failures.Count})");
 
         return failures.Count == 0 ? 0 : 1;
+    }
+
+    private static async Task<(SpotifyTrackOpenResult Result,
+        List<(string File, string[] Arguments)> Calls)> ProbeOpenAsync(string? uri, params int[] outcomes)
+    {
+        var calls = new List<(string File, string[] Arguments)>();
+        var opener = new SpotifyTrackOpenService((file, arguments, _) =>
+        {
+            calls.Add((file, arguments.ToArray()));
+            var code = outcomes[Math.Min(calls.Count - 1, outcomes.Length - 1)];
+            if (code < 0)
+                throw new IOException("simulated launcher failure");
+            return Task.FromResult((code, "", ""));
+        });
+        return (await opener.OpenAsync(uri), calls);
     }
 }

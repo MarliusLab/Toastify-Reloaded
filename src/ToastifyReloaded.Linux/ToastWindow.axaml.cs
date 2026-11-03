@@ -1,5 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Automation;
+using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Platform;
 using ToastifyReloaded.Linux.Models;
@@ -12,16 +14,22 @@ public partial class ToastWindow : Window
     private readonly LinuxTrackInfo _track;
     private readonly LinuxSettings _settings;
     private readonly ArtworkService _artworkService;
+    private readonly SpotifyTrackOpenService _trackOpener;
+    private bool _openingTrack;
+    private bool _showOpenStatus;
+    private DateTime _statusUntil;
 
     public ToastWindow(
         LinuxTrackInfo track,
         LinuxSettings settings,
-        ArtworkService artworkService)
+        ArtworkService artworkService,
+        SpotifyTrackOpenService trackOpener)
     {
         InitializeComponent();
         _track = track;
         _settings = settings;
         _artworkService = artworkService;
+        _trackOpener = trackOpener;
     }
 
     public async Task ShowToastAsync()
@@ -62,7 +70,7 @@ public partial class ToastWindow : Window
         var initialPosition = _track.PositionSeconds;
 
         while ((DateTime.UtcNow - started).TotalMilliseconds <
-               _settings.ToastDisplayMs)
+               _settings.ToastDisplayMs || _openingTrack || DateTime.UtcNow < _statusUntil)
         {
             var elapsed = _track.IsPlaying
                 ? (DateTime.UtcNow - started).TotalSeconds
@@ -89,6 +97,50 @@ public partial class ToastWindow : Window
         ArtistText.Text = string.IsNullOrWhiteSpace(_track.Artist)
             ? _track.Album
             : _track.Artist;
+
+        var description = new LocalizationService().Get("OpenTrack", _settings.Language);
+        ToolTip.SetTip(TitleLink, description);
+        ToolTip.SetTip(ArtistLink, description);
+        AutomationProperties.SetName(TitleLink, description + ": " + TitleText.Text);
+        AutomationProperties.SetName(ArtistLink, description + ": " + ArtistText.Text);
+    }
+
+    private async void OnTrackLinkClick(object? sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (_openingTrack)
+            return;
+
+        _openingTrack = true;
+        try
+        {
+            // Use the same immutable snapshot as the displayed title/artist,
+            // even if Spotify changes tracks while this toast is still open.
+            var result = await _trackOpener.OpenAsync(_track.TrackUri);
+            if (result != SpotifyTrackOpenResult.TrackOpened)
+            {
+                _showOpenStatus = true;
+                var key = result == SpotifyTrackOpenResult.AppActivated
+                    ? "TrackUnavailableOpenedSpotify"
+                    : "TrackOpenFailed";
+                TimeText.Text = new LocalizationService().Get(key, _settings.Language);
+                TimeText.IsVisible = true;
+                _statusUntil = DateTime.UtcNow.AddSeconds(2);
+                ToolTip.SetTip(TitleLink, TimeText.Text);
+                ToolTip.SetTip(ArtistLink, TimeText.Text);
+            }
+        }
+        catch
+        {
+            _showOpenStatus = true;
+            TimeText.Text = new LocalizationService().Get("TrackOpenFailed", _settings.Language);
+            TimeText.IsVisible = true;
+            _statusUntil = DateTime.UtcNow.AddSeconds(2);
+        }
+        finally
+        {
+            _openingTrack = false;
+        }
     }
 
     private void ApplyWidth()
@@ -179,8 +231,9 @@ public partial class ToastWindow : Window
             0,
             1);
 
-        TimeText.Text =
-            $"{FormatTime(current)} / {FormatTime(_track.DurationSeconds)}";
+        if (!_showOpenStatus)
+            TimeText.Text =
+                $"{FormatTime(current)} / {FormatTime(_track.DurationSeconds)}";
     }
 
     private static string FormatTime(double seconds)

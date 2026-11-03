@@ -7,6 +7,7 @@ public static class LinuxSelfTestService
     public static async Task<int> RunAsync()
     {
         var failures = new List<string>();
+        var testConfig = Path.Combine(Path.GetTempPath(), "toastify-linux-selftest-" + Guid.NewGuid().ToString("N"));
 
         void Check(
             bool condition,
@@ -169,7 +170,7 @@ public static class LinuxSelfTestService
                 "Italian localization");
 
             var settingsService =
-                new LinuxSettingsService();
+                new LinuxSettingsService(testConfig);
 
             await settingsService.SaveAsync(
                 customSettings);
@@ -205,8 +206,81 @@ public static class LinuxSelfTestService
             var process =
                 new ProcessService();
 
+            var separator = PlayerctlService.MetadataSeparator;
+            var validId = "4uLU6hMCjMI75M1A2tKUQC";
+            var metadata = string.Join(separator, "Song", "Artist", "Album", "180000000", "", "spotify:track:" + validId, "");
+            var snapshot = PlayerctlService.ParseTrackSnapshot(metadata, 12, true);
+            Check(snapshot?.TrackUri == "spotify:track:" + validId && snapshot.DurationSeconds == 180,
+                "track URI captured in metadata snapshot");
+            var framedMetadata = metadata + separator + PlayerctlService.MetadataEndMarker;
+            Check(PlayerctlService.ParseTrackSnapshot(framedMetadata.Trim(), 12, true)?.TrackUri == snapshot?.TrackUri,
+                "metadata framing preserves missing final track ID after output trimming");
+            Check(PlayerctlService.ParseTrackSnapshot(framedMetadata + separator + "unexpected", 0, true) is null &&
+                PlayerctlService.ParseTrackSnapshot(metadata + separator + "wrong-marker", 0, true) is null,
+                "invalid metadata framing is rejected");
+            var missing = PlayerctlService.ParseTrackSnapshot(
+                string.Join(separator, "Local song", "Artist", "Album", "0", "", "file:///tmp/song.mp3", ""), 0, true);
+            Check(missing is not null && missing.TrackUri is null,
+                "missing URI never reuses previous track identity");
+            var pathSnapshot = PlayerctlService.ParseTrackSnapshot(
+                string.Join(separator, "Song", "Artist", "Album", "0", "", "", "/com/spotify/track/" + validId), 0, false);
+            Check(pathSnapshot?.TrackUri == snapshot?.TrackUri,
+                "MPRIS Spotify track path is a validated URI fallback");
+            var otherId = "0VjIjW4GlUZAMYd2vXMi3b";
+            var conflictSnapshot = PlayerctlService.ParseTrackSnapshot(
+                string.Join(separator, "Song", "Artist", "Album", "0", "", "spotify:track:" + validId, "/com/spotify/track/" + otherId), 0, true);
+            Check(conflictSnapshot is not null && conflictSnapshot.TrackUri is null,
+                "conflicting metadata track IDs are not opened");
+            Check(snapshot is not null && snapshot.Identity != (snapshot with { TrackUri = "spotify:track:" + otherId }).Identity,
+                "different recordings with identical labels retain different identities");
+            Check(PlayerctlService.ParseTrackSnapshot(metadata + separator + "injected", 0, true) is null,
+                "ambiguous metadata fields rejected");
+            var calls = new List<string>();
+            var opener = new SpotifyTrackOpenService((file, arguments, _) =>
+            {
+                calls.Add(file + " " + string.Join(" ", arguments));
+                return Task.FromResult((calls.Count == 2 ? 0 : 1, "", ""));
+            }, _ => Task.FromResult<string?>(null));
+            Check(await opener.OpenAsync(snapshot?.TrackUri) == SpotifyTrackOpenResult.TrackOpened &&
+                calls.Count == 2 && calls[0].Contains("spotify:track:" + validId) &&
+                calls[1].Contains("https://open.spotify.com/track/" + validId),
+                "desktop track URI falls back to canonical HTTPS");
+            calls.Clear();
+            var resolverCanCancel = false;
+            var activation = new SpotifyTrackOpenService((file, arguments, _) =>
+            {
+                calls.Add(file + " " + string.Join(" ", arguments));
+                return Task.FromResult((0, "", ""));
+            }, token =>
+            {
+                resolverCanCancel = token.CanBeCanceled;
+                return Task.FromResult<string?>(null);
+            });
+            Check(await activation.OpenAsync("javascript:alert(1)") == SpotifyTrackOpenResult.AppActivated &&
+                resolverCanCancel && calls.SequenceEqual(new[] { "xdg-open spotify:" }),
+                "invalid metadata only activates Spotify");
+            var failedOpener = new SpotifyTrackOpenService((_, _, _) =>
+                throw new InvalidOperationException("Simulated missing desktop opener"),
+                _ => throw new InvalidOperationException("Simulated lost player"));
+            Check(await failedOpener.OpenAsync(snapshot?.TrackUri) == SpotifyTrackOpenResult.Failed,
+                "all opener failures are crash-safe");
+
             var playerctl =
                 new PlayerctlService(process);
+
+            using (var cancellation = new CancellationTokenSource())
+            {
+                cancellation.Cancel();
+                try
+                {
+                    await playerctl.ResolveSpotifyPlayerAsync(cancellationToken: cancellation.Token);
+                    Check(false, "cancelled player resolver does not start playerctl");
+                }
+                catch (OperationCanceledException)
+                {
+                    Check(true, "cancelled player resolver does not start playerctl");
+                }
+            }
 
             Check(
                 await playerctl.IsAvailableAsync(),
@@ -228,6 +302,11 @@ public static class LinuxSelfTestService
             Console.Error.WriteLine(ex);
             failures.Add(
                 "unhandled self-test exception");
+        }
+        finally
+        {
+            if (Directory.Exists(testConfig))
+                Directory.Delete(testConfig, recursive: true);
         }
 
         Console.WriteLine();

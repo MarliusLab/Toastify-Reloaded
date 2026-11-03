@@ -5,6 +5,8 @@ on:
     branches: [ main ]
     paths:
       - "src/ToastifyReloaded.Linux/**"
+      - "src/ToastifyReloaded.Shared/**"
+      - "tests/ToastifyReloaded.TrackLink.Tests/**"
       - "packaging/linux/**"
       - "scripts/build-linux*.sh"
       - "scripts/package-linux-*.sh"
@@ -15,6 +17,8 @@ on:
     branches: [ main ]
     paths:
       - "src/ToastifyReloaded.Linux/**"
+      - "src/ToastifyReloaded.Shared/**"
+      - "tests/ToastifyReloaded.TrackLink.Tests/**"
       - "packaging/linux/**"
       - "scripts/build-linux*.sh"
       - "scripts/package-linux-*.sh"
@@ -41,10 +45,13 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            playerctl xbindkeys xdg-desktop-portal dbus-x11 \
+            playerctl xbindkeys xdg-desktop-portal dbus-x11 xdg-utils \
             libx11-6 libice6 libsm6 libfontconfig1 libxext6 \
             libxrender1 libxrandr2 libxi6 libgl1 libglib2.0-0 \
             desktop-file-utils curl xvfb xauth file
+
+      - name: Test track links and safe launcher fallbacks
+        run: dotnet run --project tests/ToastifyReloaded.TrackLink.Tests -c Release
 
       - name: Build Linux x64
         run: |

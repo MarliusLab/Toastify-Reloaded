@@ -39,7 +39,7 @@ Section: sound
 Priority: optional
 Architecture: arm64
 Maintainer: Toastify Reloaded contributors
-Depends: playerctl, xbindkeys, xdg-desktop-portal, libx11-6, libice6, libsm6, libfontconfig1
+Depends: playerctl, xbindkeys, xdg-desktop-portal, xdg-utils, libx11-6, libice6, libsm6, libfontconfig1
 Description: Toastify Reloaded for Linux ARM64
  Spotify toast notifications, MPRIS controls, Spicetify/Lyrics helpers
  and X11/Wayland global hotkeys.

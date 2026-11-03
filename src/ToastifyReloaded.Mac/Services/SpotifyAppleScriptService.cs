@@ -1,5 +1,6 @@
 using System.Globalization;
 using ToastifyReloaded.Mac.Models;
+using ToastifyReloaded.Shared;
 
 namespace ToastifyReloaded.Mac.Services;
 
@@ -41,6 +42,10 @@ public sealed class SpotifyAppleScriptService
             "tell application \"Spotify\"",
             "try",
             "set tr to current track",
+            "set idText to \"\"",
+            "try",
+            "set idText to id of tr as text",
+            "end try",
             "set titleText to name of tr as text",
             "set artistText to artist of tr as text",
             "set albumText to album of tr as text",
@@ -51,7 +56,10 @@ public sealed class SpotifyAppleScriptService
             "try",
             "set artText to artwork url of tr as text",
             "end try",
-            $"return titleText & (character id 31) & artistText & (character id 31) & albumText & (character id 31) & durationText & (character id 31) & positionText & (character id 31) & stateText & (character id 31) & artText",
+            "if idText is not \"\" then",
+            "if (id of current track as text) is not idText then return \"\"",
+            "end if",
+            "return titleText & (character id 31) & artistText & (character id 31) & albumText & (character id 31) & durationText & (character id 31) & positionText & (character id 31) & stateText & (character id 31) & artText & (character id 31) & idText & (character id 31) & \"toastify-track-v1\"",
             "on error",
             "return \"\"",
             "end try",
@@ -65,8 +73,12 @@ public sealed class SpotifyAppleScriptService
 
     internal static MacTrackInfo? ParseTrackPayload(string payload)
     {
-        var parts = payload.Trim().Split(Separator);
-        if (parts.Length < 7 || string.IsNullOrWhiteSpace(parts[0]))
+        var parts = payload.Split(Separator);
+        // Reject delimiter injection rather than pairing a title with another field's ID.
+        // The final marker keeps ProcessService's stdout trimming outside the ID.
+        // Seven fields remain accepted for legacy fixtures, with app-only opening.
+        var hasTrackId = parts.Length == 9 && parts[8] == "toastify-track-v1";
+        if ((!hasTrackId && parts.Length != 7) || string.IsNullOrWhiteSpace(parts[0]))
             return null;
 
         _ = double.TryParse(
@@ -90,7 +102,8 @@ public sealed class SpotifyAppleScriptService
             NormalizeArtwork(parts[6]),
             Math.Max(0, positionSeconds),
             Math.Max(0, durationMs / 1000d),
-            state.Equals("playing", StringComparison.OrdinalIgnoreCase));
+            state.Equals("playing", StringComparison.OrdinalIgnoreCase),
+            hasTrackId ? SpotifyTrackLink.TryGetTrackUri(parts[7]) ?? "" : "");
     }
 
     public Task PlayPauseAsync()

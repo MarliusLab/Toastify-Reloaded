@@ -24,6 +24,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="../ToastifyReloaded.Shared/SpotifyTrackLink.cs" Link="Shared/SpotifyTrackLink.cs" />
     <AvaloniaResource Include="Assets/**" />
   </ItemGroup>
 </Project>

@@ -1,10 +1,13 @@
 using System.Globalization;
 using ToastifyReloaded.Linux.Models;
+using ToastifyReloaded.Shared;
 
 namespace ToastifyReloaded.Linux.Services;
 
 public sealed class PlayerctlService
 {
+    internal const string MetadataSeparator = "\u001f";
+    internal const string MetadataEndMarker = "toastify-mpris-v1";
     private readonly ProcessService _process;
     private double _lastNonZeroVolume = 0.5;
     private string? _cachedPlayer;
@@ -15,11 +18,15 @@ public sealed class PlayerctlService
     public Task<bool> IsAvailableAsync()
         => _process.ExistsAsync("playerctl");
 
-    public async Task<string?> ResolveSpotifyPlayerAsync(bool forceRefresh = false)
+    public async Task<string?> ResolveSpotifyPlayerAsync(
+        bool forceRefresh = false,
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (!forceRefresh && !string.IsNullOrWhiteSpace(_cachedPlayer))
         {
             var status = await RunRawAsync(
+                cancellationToken,
                 "--player=" + _cachedPlayer,
                 "status");
 
@@ -27,7 +34,7 @@ public sealed class PlayerctlService
                 return _cachedPlayer;
         }
 
-        var result = await RunRawAsync("--list-all");
+        var result = await RunRawAsync(cancellationToken, "--list-all");
         if (result.ExitCode != 0)
         {
             _cachedPlayer = null;
@@ -52,41 +59,38 @@ public sealed class PlayerctlService
     public async Task<bool> IsSpotifyAvailableAsync()
         => await ResolveSpotifyPlayerAsync(forceRefresh: true) is not null;
 
-    public async Task<LinuxTrackInfo?> GetTrackAsync()
+    public async Task<LinuxTrackInfo?> GetTrackAsync(CancellationToken cancellationToken = default)
     {
-        var player = await ResolveSpotifyPlayerAsync();
+        var player = await ResolveSpotifyPlayerAsync(cancellationToken: cancellationToken);
         if (player is null)
             return null;
 
-        const string separator = "|||";
         var format =
-            "{{title}}" + separator +
-            "{{artist}}" + separator +
-            "{{album}}" + separator +
-            "{{mpris:length}}" + separator +
-            "{{mpris:artUrl}}";
+            "{{title}}" + MetadataSeparator +
+            "{{artist}}" + MetadataSeparator +
+            "{{album}}" + MetadataSeparator +
+            "{{mpris:length}}" + MetadataSeparator +
+            "{{mpris:artUrl}}" + MetadataSeparator +
+            "{{xesam:url}}" + MetadataSeparator +
+            "{{mpris:trackid}}" + MetadataSeparator + MetadataEndMarker;
 
-        var metadata = await RunPlayerAsync(player, "--format", format, "metadata");
+        var metadata = await RunPlayerAsync(player, cancellationToken, "--format", format, "metadata");
 
         if (metadata.ExitCode != 0 || string.IsNullOrWhiteSpace(metadata.StdOut))
         {
             // Spotify may have restarted and received a new MPRIS name.
-            player = await ResolveSpotifyPlayerAsync(forceRefresh: true);
+            player = await ResolveSpotifyPlayerAsync(forceRefresh: true, cancellationToken: cancellationToken);
             if (player is null)
                 return null;
 
-            metadata = await RunPlayerAsync(player, "--format", format, "metadata");
+            metadata = await RunPlayerAsync(player, cancellationToken, "--format", format, "metadata");
         }
 
         if (metadata.ExitCode != 0 || string.IsNullOrWhiteSpace(metadata.StdOut))
             return null;
 
-        var parts = metadata.StdOut.Split(separator);
-        if (parts.Length < 5)
-            return null;
-
-        var positionResult = await RunPlayerAsync(player, "position");
-        var statusResult = await RunPlayerAsync(player, "status");
+        var positionResult = await RunPlayerAsync(player, cancellationToken, "position");
+        var statusResult = await RunPlayerAsync(player, cancellationToken, "status");
 
         double position = 0;
         _ = double.TryParse(
@@ -94,6 +98,35 @@ public sealed class PlayerctlService
             NumberStyles.Float,
             CultureInfo.InvariantCulture,
             out position);
+
+        return ParseTrackSnapshot(
+            metadata.StdOut,
+            position,
+            statusResult.StdOut.Equals("Playing", StringComparison.OrdinalIgnoreCase));
+    }
+
+    // All identity fields come from one metadata read. Never carry a previous
+    // track URI forward when Spotify omits it during a transition/ad/local file.
+    internal static LinuxTrackInfo? ParseTrackSnapshot(
+        string metadata,
+        double position,
+        bool isPlaying)
+    {
+        var parts = metadata.Split(MetadataSeparator);
+        // A final non-whitespace marker protects empty trailing identity fields
+        // from ProcessService's output trimming. Keep seven-field snapshots
+        // readable for existing fixtures, while rejecting ambiguous framing.
+        if ((parts.Length != 7 &&
+             (parts.Length != 8 || parts[7] != MetadataEndMarker)) ||
+            string.IsNullOrWhiteSpace(parts[0]))
+            return null;
+
+        var urlTrackUri = SpotifyTrackLink.TryGetTrackUri(parts[5]);
+        var mprisTrackUri = SpotifyTrackLink.TryGetTrackUri(parts[6]);
+        var trackUri = urlTrackUri is not null && mprisTrackUri is not null &&
+            !string.Equals(urlTrackUri, mprisTrackUri, StringComparison.Ordinal)
+                ? null
+                : urlTrackUri ?? mprisTrackUri;
 
         double duration = 0;
         if (double.TryParse(
@@ -110,9 +143,10 @@ public sealed class PlayerctlService
             parts[1].Trim(),
             parts[2].Trim(),
             NormalizeArtwork(parts[4]),
-            Math.Max(0, position),
-            Math.Max(0, duration),
-            statusResult.StdOut.Equals("Playing", StringComparison.OrdinalIgnoreCase));
+            double.IsFinite(position) ? Math.Max(0, position) : 0,
+            double.IsFinite(duration) ? Math.Max(0, duration) : 0,
+            isPlaying,
+            trackUri);
     }
 
     public Task PlayPauseAsync() => CommandAsync("play-pause");
@@ -174,11 +208,18 @@ public sealed class PlayerctlService
     private Task<(int ExitCode, string StdOut, string StdErr)> RunPlayerAsync(
         string player,
         params string[] args)
-        => RunRawAsync(new[] { "--player=" + player }.Concat(args).ToArray());
+        => RunPlayerAsync(player, CancellationToken.None, args);
+
+    private Task<(int ExitCode, string StdOut, string StdErr)> RunPlayerAsync(
+        string player,
+        CancellationToken cancellationToken,
+        params string[] args)
+        => RunRawAsync(cancellationToken, new[] { "--player=" + player }.Concat(args).ToArray());
 
     private Task<(int ExitCode, string StdOut, string StdErr)> RunRawAsync(
+        CancellationToken cancellationToken,
         params string[] args)
-        => _process.RunAsync("playerctl", args);
+        => _process.RunAsync("playerctl", args, cancellationToken);
 
     private static string NormalizeArtwork(string value)
     {

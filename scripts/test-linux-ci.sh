@@ -3,6 +3,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP="$ROOT/dist/linux-x64/ToastifyReloaded.Linux"
 LOG="$ROOT/dist/linux-smoke-test.log"
+CONFIG="$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/toastify-linux-smoke.XXXXXX")"
+trap 'rm -rf "$CONFIG"' EXIT
 
 test -x "$APP" || { echo "Executable missing: $APP" >&2; exit 1; }
 
@@ -23,20 +25,18 @@ if ldd "$APP" 2>/dev/null | grep -q "not found"; then
 fi
 
 set +e
-timeout --signal=TERM --kill-after=3s 10s   xvfb-run -a -s "-screen 0 1280x800x24"   env XDG_SESSION_TYPE=x11 DOTNET_EnableDiagnostics=0   "$APP" >>"$LOG" 2>&1
+timeout --signal=TERM --kill-after=3s 10s \
+  dbus-run-session -- xvfb-run -a -s "-screen 0 1280x800x24" \
+  env XDG_CONFIG_HOME="$CONFIG" XDG_SESSION_TYPE=x11 \
+    TOASTIFY_DISABLE_NATIVE_WAYLAND=1 DOTNET_EnableDiagnostics=0 \
+    "$APP" >>"$LOG" 2>&1
 code=$?
 set -e
 
-pkill -f xbindkeys >/dev/null 2>&1 || true
-
-if [[ "$code" -ne 124 && "$code" -ne 0 ]]; then
+if [[ "$code" -ne 124 ]]; then
   echo "GUI smoke test failed with exit code $code" | tee -a "$LOG"
   cat "$LOG"
-  exit "$code"
+  exit 1
 fi
 
-if [[ "$code" -eq 124 ]]; then
-  echo "PASS: Avalonia app stayed alive for 10 seconds under Xvfb." | tee -a "$LOG"
-else
-  echo "PASS: Avalonia app exited cleanly." | tee -a "$LOG"
-fi
+echo "PASS: Avalonia app stayed alive for 10 seconds under Xvfb." | tee -a "$LOG"

@@ -20,3 +20,9 @@ Desktop.ini
 
 # Local diagnostics
 *.log
+
+# Local build tools
+.dotnet-home/
+.nuget-packages/
+__pycache__/
+*.pyc
