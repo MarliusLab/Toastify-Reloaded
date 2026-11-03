@@ -28,7 +28,7 @@ The project keeps the recognizable Toastify workflow and notification style whil
 
 | Platform | Current release | Channel |
 |---|---|---|
-| Windows | `v1.3.7` | Stable |
+| Windows | `v1.3.8` | Stable |
 | Linux | `v1.4.1-linux` | Stable |
 | macOS | `v1.5.0-macos-rc.2` | Release candidate; not stable |
 
@@ -39,9 +39,9 @@ These releases are published in [GitHub Releases](https://github.com/MarliusLab/
 
 ## Download
 
-### Windows — stable 1.3.7
+### Windows — stable 1.3.8
 
-[Windows v1.3.7 release page](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.3.7)
+[Windows v1.3.8 release page](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.3.8)
 
 Windows installer packages:
 
@@ -50,9 +50,9 @@ Windows installer packages:
 
 Windows checksums: `SHA256SUMS-Windows.txt`.
 
-Version 1.3.7 fixes Spotify/Spicetify version discovery and stalled updates. Downloads show bytes and percentage with cancellation and bounded waits; installation uses the native installer progress bar. Existing settings and the earlier legacy-tag update fix are preserved.
+Version 1.3.8 adds toast clicks that open/restore Spotify and retains the Spotify/Spicetify detection and updater fixes introduced in 1.3.7. Downloads show bytes and percentage with cancellation and bounded waits; installation uses the native installer progress bar. Existing settings and the earlier legacy-tag update fix are preserved.
 
-Windows 1.3.8 is prepared for publication after CI passes. It adds the missing toast click action to open/restore Spotify, with keyboard activation and safe fallbacks. See [Windows toast behavior and track-identity limits](docs/WINDOWS_TOAST.md).
+Toast clicks support keyboard activation and safe fallbacks. See [Windows toast behavior and track-identity limits](docs/WINDOWS_TOAST.md).
 
 If a running 1.3.5/1.3.6 is already stuck updating, choose **Exit** from the Toastify tray menu and run the new installer manually once. See [Windows maintenance and progress](docs/WINDOWS_MAINTENANCE.md).
 
@@ -1084,21 +1084,23 @@ Toastify-Reloaded/
 ## Platform status
 ### Click a toast title or artist
 
+Windows 1.3.8 opens/restores Spotify when the toast title, artist, artwork or background is clicked. Enter/Space activates a focused text line; Ctrl+drag still moves the toast. Windows SMTC does not expose a catalog URI, so the current backend activates Spotify without selecting an exact track. See [Windows toast activation](docs/WINDOWS_TOAST.md).
+
 Linux 1.4.1 and macOS 1.5.0 RC2 include keyboard accessible title and artist links to the **track shown in that toast**. The player supplies a Spotify catalog track URI or URL in the same metadata snapshot; a change of song cannot attach another track to the displayed text. Toastify sends a navigation link and does not issue a play/pause or seek command. Spotify determines how the link is handled.
 
 Toastify tries Spotify first, then a canonical HTTPS track link if the native handler fails. Local files, advertisements and missing or invalid track identifiers only activate Spotify. Untrusted URLs and title searches are never launched. No new setting or configuration migration is required; existing settings, themes, hotkeys and playback controls remain available.
 
-Windows 1.3.6 contains updater fixes; it does not include the Linux/macOS track links. See [verified platform status and remaining validation](docs/PLATFORM_STATUS.md) for the distinction between automated checks and real Spotify/desktop tests. The Spotify URI and ID formats follow [Spotify documentation](https://developer.spotify.com/documentation/web-api/concepts/spotify-uris-ids).
+See [verified platform status and remaining validation](docs/PLATFORM_STATUS.md) for the distinction between automated checks and real Spotify/desktop tests. The Spotify URI and ID formats follow [Spotify documentation](https://developer.spotify.com/documentation/web-api/concepts/spotify-uris-ids).
 
 | Platform | Status | Distribution |
 |---|---|---|
-| Windows x64 | Stable 1.3.7 release available | Installer |
-| Windows ARM64 | Stable 1.3.7 release available | Installer |
+| Windows x64 | Stable 1.3.8 release available | Installer |
+| Windows ARM64 | Stable 1.3.8 release available | Installer |
 | Linux x64 | Stable 1.4.1 release available | AppImage / `.deb` / tar.gz |
 | Linux ARM64 | Stable 1.4.1 release available; cross-built | `.deb` / tar.gz |
 | macOS x64 / Apple Silicon | 1.5.0 RC2 release available; stable acceptance pending | ZIP / DMG |
 
-Release tags: **`v1.3.7`**, **`v1.4.1-linux`**, **`v1.5.0-macos-rc.2`**.
+Release tags: **`v1.3.8`**, **`v1.4.1-linux`**, **`v1.5.0-macos-rc.2`**.
 
 ---
 
