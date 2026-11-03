@@ -99,8 +99,6 @@ Linux:
 
 macOS, before promotion toward stable:
 
-- Obtain a green updated macOS build, including native self-tests, both
-  architecture packages, signature verification and startup smoke test.
 - On real Intel and Apple Silicon Macs, confirm Spotify Automation
   permission, metadata, transport controls and the title/artist links.
 - Confirm Accessibility permission and global shortcuts; inspect toast
@@ -126,4 +124,15 @@ On 2026-11-03, Windows x64 with .NET SDK 9.0.315 targeting .NET 8:
 - Linux/macOS UI parity validator: PASS, 49 shared settings, 61 named controls, matching toast markup, 13 themes plus Custom.
 - Modified shell scripts: syntax checks PASS. Whitespace check: PASS.
 
-Native GitHub Actions results are recorded after the pull-request checks finish.
+Native GitHub Actions results for the implementation commit are recorded below.
+
+## Native GitHub Actions results
+
+Implementation commit: `e4251bbfc52e7c03c6f79ac414c470ddd99f2c75`, [PR #1](https://github.com/MarliusLab/Toastify-Reloaded/pull/1). Both native workflows completed successfully on 2026-11-03.
+
+| Workflow | Checks that passed |
+|---|---|
+| [Linux Build](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41619269739) | 132 regression assertions; x64 publish; native headless self-test; 10-second Xvfb startup; desktop entry; x64 tar/DEB/AppImage and AppImage structure; ARM64 cross-build, ELF architecture and tar/DEB validation; artifact upload |
+| [macOS Build](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41619269418) | feature/parity checks; native headless self-test including osascript availability; 132 regression assertions; x64 and ARM64 publish; app bundles and ad-hoc signature verification; 10-second native ARM64 app startup; ZIP/DMG validation and SHA-256 checksums; artifact upload |
+
+The former RC1 self-test build blocker is resolved. The native macOS startup test ran on Apple Silicon; the Intel executable was built and inspected, not executed. Linux ARM64 was cross-built, not executed. These workflow artifacts are development packages, not a published release. The remaining interactive acceptance work above is still open.

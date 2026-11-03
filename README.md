@@ -1057,7 +1057,7 @@ Toastify-Reloaded/
 ## Platform status
 ### Click a toast title or artist (development)
 
-On Linux and macOS, the title and artist are keyboard accessible links to the **track shown in that toast**. The player supplies a Spotify catalog track URI or URL in the same metadata snapshot; a change of song cannot attach another track to the displayed text. Opening a track navigates Spotify; it does not issue a play command or change the listening context.
+On Linux and macOS, the title and artist are keyboard accessible links to the **track shown in that toast**. The player supplies a Spotify catalog track URI or URL in the same metadata snapshot; a change of song cannot attach another track to the displayed text. Toastify sends a navigation link and does not issue a play/pause or seek command. Spotify determines how the link is handled.
 
 Toastify tries Spotify first, then a canonical HTTPS track link if the native handler fails. Local files, advertisements and missing or invalid track identifiers only activate Spotify. Untrusted URLs and title searches are never launched. No new setting or configuration migration is required; existing settings, themes, hotkeys and playback controls remain available.
 
