@@ -35,7 +35,8 @@ public sealed class SpotifyTrackOpenService
     private static readonly ushort[] ShortcutGuardKeys =
     {
         NativeMethods.VK_MENU, NativeMethods.VK_SHIFT, NativeMethods.VK_CONTROL,
-        NativeMethods.VK_LWIN, NativeMethods.VK_RWIN, NativeMethods.VK_J
+        NativeMethods.VK_LWIN, NativeMethods.VK_RWIN, NativeMethods.VK_J,
+        NativeMethods.VK_RETURN, NativeMethods.VK_SPACE, NativeMethods.VK_LBUTTON, NativeMethods.VK_RBUTTON
     };
     private static readonly SpotifyShortcutInput[] NowPlayingShortcut =
     {
@@ -98,8 +99,11 @@ public sealed class SpotifyTrackOpenService
         CancellationToken userCancellationToken)
     {
         operationToken.ThrowIfCancellationRequested();
-        // A shortcut callback can run before its physical keys have been
-        // released. Never release keys that were already held by the user.
+        // A shortcut, Enter/Space key-down or mouse-down callback can run before
+        // its physical trigger is released. Moving focus sooner could send a
+        // repeated Space/Enter or the mouse-up into Spotify. Guard both physical
+        // mouse buttons because Windows can swap their logical mapping.
+        // Never release keys/buttons that were already held by the user.
         if (!await WaitForShortcutReleaseAsync(operationToken).ConfigureAwait(false))
             return SpotifyTrackOpenResult.Failed;
 

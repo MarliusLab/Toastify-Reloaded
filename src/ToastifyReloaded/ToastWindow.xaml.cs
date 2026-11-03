@@ -653,7 +653,7 @@ public partial class ToastWindow : Window
         if (e.Key is not (Key.Enter or Key.Space) || _getModifiers() != ModifierKeys.None)
             return;
         e.Handled = true;
-        await OpenSpotifyAsync();
+        if (!e.IsRepeat) await OpenSpotifyAsync();
     }
 
     private async void Window_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)

@@ -20,6 +20,10 @@ internal static class NativeMethods
     public const ushort VK_LWIN = 0x5B;
     public const ushort VK_RWIN = 0x5C;
     public const ushort VK_J = 0x4A;
+    public const ushort VK_RETURN = 0x0D;
+    public const ushort VK_SPACE = 0x20;
+    public const ushort VK_LBUTTON = 0x01;
+    public const ushort VK_RBUTTON = 0x02;
 
     public const uint INPUT_KEYBOARD = 1;
     public const uint KEYEVENTF_KEYUP = 0x0002;
