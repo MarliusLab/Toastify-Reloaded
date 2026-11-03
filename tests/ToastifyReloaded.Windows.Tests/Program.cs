@@ -33,6 +33,7 @@ internal static class Program
             await UiTests.RunAsync(Check);
             await SpotifyTrackOpenTests.RunAsync(Check);
             await ToastTests.RunAsync(Check);
+            await ToastHotkeyTests.RunAsync(Check);
             Console.WriteLine($"WINDOWS REGRESSION TEST RESULT: PASS ({count})");
             return 0;
         }

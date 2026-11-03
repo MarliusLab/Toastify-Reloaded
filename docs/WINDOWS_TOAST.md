@@ -1,19 +1,27 @@
-# Windows toast activation
+# Windows toast: go to Now Playing
 
-Windows 1.3.8 adds the missing normal-click action to the WPF toast. Click its title, artist, artwork or background to open Spotify. Focus either text line and press Enter or Space for the same action. Ctrl+drag retains the existing toast movement behavior.
+Windows 1.3.9 adds Spotify's **Go to Now Playing** command after opening/restoring its window. Click the toast title, artist, artwork or background, or focus either text line and press Enter/Space. Ctrl+drag retains the existing toast movement behavior.
 
-The opener restores minimized Spotify windows and requests foreground activation. If no window is available, it uses the registered `spotify:` handler and retries activation briefly. Windows may restrict foreground activation; acceptance still requires an interactive check with the installed Spotify client.
+**Alt+Shift+J works while a toast is visible**, including without toast focus. One temporary registration is shared by overlapping toasts; the last close/hide releases it. The existing global-hotkeys preference is respected. If global hotkeys are disabled, the same combination works locally with a toast text line focused, provided another app has not registered it. If another app owns the combination, click or Enter/Space still activates Spotify but forwarding the occupied shortcut is skipped. The tooltip reports the fallback.
 
-## Track identity and safe fallbacks
+Spotify documents [Alt+Shift+J as Go to Now Playing](https://support.spotify.com/us/article/keyboard-shortcuts/). The target is the item currently playing when the action runs, which may have changed since the toast appeared. Toastify sends no play/pause, skip, seek or track-URI navigation command for this action. The song continues from its current position; the Spotify client controls the resulting view.
 
-The current Windows backend uses `GlobalSystemMediaTransportControlsSessionMediaProperties`. Its [documented properties](https://learn.microsoft.com/en-us/uwp/api/windows.media.control.globalsystemmediatransportcontrolssessionmediaproperties) contain title, artist, album and thumbnail, but no catalog URI. Production Windows snapshots therefore leave `TrackUri` unset and activate Spotify. This does not establish exact-track navigation for Windows.
+## Focus and shortcut handling
 
-The opener accepts an optional trusted track URI, validates it with the same strict shared parser used on Linux/macOS, and tries the canonical Spotify URI followed by its canonical HTTPS URL. Text such as title/artist is never used to guess an identifier or launch an arbitrary URL. Each toast retains its own immutable snapshot.
+The opener waits a bounded interval for held shortcut/activation keys and mouse buttons to be released before moving focus. This includes Alt/Shift/Ctrl/Win/J, Enter, Space and both main mouse buttons: a held Space must not auto-repeat into Spotify's play/pause control. It restores a minimized Spotify window or uses the fixed `spotify:` protocol to launch it, then checks that a live Spotify window owns the foreground. It checks held input and focus again immediately before injection and submits one balanced Alt+Shift+J sequence. A failed focus check sends no new key-down events.
+
+Toastify suspends only its matching shortcut while forwarding input. This includes a saved user binding with the same combination, preventing recursive capture or accidental execution of that binding. Other hotkeys remain registered. Before releasing ownership it checks that the combination is available, including when global hotkeys are disabled; a known foreign owner blocks forwarding. Availability can change after this probe, so an application registering the same combination during the handoff remains a Windows-level race. The registration is restored after the handoff if a toast remains visible; settings are not rewritten.
+
+Windows can reject foreground activation or input, including when Spotify runs at a higher integrity level. The result distinguishes app activation from a requested Now Playing navigation. Partial injection triggers best-effort release of only the synthetic keys already inserted. Foreground checks and input insertion are separate Windows operations, so there is a small unavoidable focus-change race. See Microsoft's [SendInput contract](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-sendinput).
+
+## Track identity
+
+The Windows SMTC [media properties](https://learn.microsoft.com/en-us/uwp/api/windows.media.control.globalsystemmediatransportcontrolssessionmediaproperties) do not supply a Spotify catalog URI. This feature uses the desktop navigation shortcut and does not guess identifiers from title/artist. The older validated URI opener remains available internally and tested; the toast uses the separate Now Playing action.
 
 ## Verification
 
-Automated checks cover both text lines and artwork through real WPF routed events, keyboard activation, snapshot forwarding, repeated clicks, error/retry and cancellation on close. Service fixtures test safe fallback order and malformed identifiers without launching the user's Spotify client.
+Automated checks use fake shell/input/registration adapters and real WPF routed events without controlling the user's Spotify client. They cover focus gating, held keys, input layout/sequence/cleanup, shortcut suspension and restoration, overlapping toast lifetime, local keyboard routing, retry/cancellation and the existing timeline/lifetime behavior.
 
-Local Windows validation passed: Release build (zero warnings/errors), 109 Windows regression checks, 140 shared track/version assertions, 14 release guard tests, classic WPF UI invariants and Linux/macOS structural parity. The timed-toast regression keeps a 500ms toast alive during a pending activation while its timeline advances, then verifies normal closure afterward. Native Spotify foreground behavior has not been interactively accepted on this host.
+Local Windows validation passed 189 Windows regression checks, 140 shared version/track-link assertions, 14 release guards, the classic WPF layout contract and Linux/macOS structural parity. Existing maintenance regression checks remain in the same harness.
 
-Interactive acceptance: play a song in Spotify, minimize its window, then click the title or artist of a newly displayed toast. Confirm Spotify is restored. Also check Ctrl+drag, a closed Spotify client, and absence of an installed protocol handler. Automated checks do not replace this real-client acceptance.
+Real-client acceptance remains separate: play a song, navigate elsewhere in Spotify, minimize it, then click the toast or press Alt+Shift+J while it is visible. Confirm Spotify shows the current item and playback continues without a restart or pause. Repeat with two toasts, Ctrl+drag, disabled global hotkeys, and a closed client. Successful input insertion alone does not prove that Spotify processed the command.

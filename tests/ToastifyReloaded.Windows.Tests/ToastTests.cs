@@ -13,10 +13,11 @@ internal static class ToastTests
     {
         const string uri = "spotify:track:4uLU6hMCjMI75M1A2tKUQC";
         var settings = new AppSettings { ApplicationLanguage = "Italian", ToastTitlesOrder = "ArtistTrack" };
-        var calls = new List<string?>();
+        var calls = 0;
+        var modifiers = ModifierKeys.None;
         var pending = new TaskCompletionSource<SpotifyTrackOpenResult>();
         var window = new ToastWindow(new TrackInfo("Song", "Artist", "Album", TrackUri: uri), settings,
-            (target, _) => { calls.Add(target); return pending.Task; }) { Opacity = 0, ShowActivated = false };
+            _ => { calls++; return pending.Task; }, () => modifiers) { Opacity = 0, ShowActivated = false };
         window.Loaded += (_, _) => { window.Left = -10000; window.Top = -10000; };
         window.Show();
         try
@@ -25,16 +26,16 @@ internal static class ToastTests
             var artist = (TextBlock)window.FindName("Title2");
             check(title.Text == "Artist" && artist.Text == "Song", "toast preserves configured artist/title order");
             Click(title);
-            check(calls.SequenceEqual(new[] { uri }), "clicking the first toast text opens its captured track snapshot");
+            check(calls == 1, "clicking the first toast text requests Now Playing without opening its old track URI");
             Click(artist);
-            check(calls.Count == 1, "repeated toast clicks do not start concurrent Spotify launches");
-            pending.SetResult(SpotifyTrackOpenResult.AppActivated);
+            check(calls == 1, "repeated toast clicks do not start concurrent Spotify launches");
+            pending.SetResult(SpotifyTrackOpenResult.NowPlayingRequested);
             await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
             Click(artist);
-            check(calls.Count == 2, "clicking the second toast text works after the first launch completes");
+            check(calls == 2, "clicking the second toast text works after the first launch completes");
             await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
             Click((UIElement)window.FindName("AlbumArt"));
-            check(calls.Count == 3, "artwork clicks also open Spotify through the toast handler");
+            check(calls == 3, "artwork clicks also open Spotify through the toast handler");
             await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
             var source = PresentationSource.FromVisual(window)!;
             title.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, source, Environment.TickCount, Key.Enter)
@@ -42,18 +43,31 @@ internal static class ToastTests
             await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
             artist.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, source, Environment.TickCount, Key.Space)
                 { RoutedEvent = Keyboard.KeyDownEvent });
-            check(calls.Count == 5, "Enter and Space activate both focusable toast text links");
+            check(calls == 5, "Enter and Space activate both focusable toast text links");
+            modifiers = ModifierKeys.Alt | ModifierKeys.Shift;
+            title.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, source, Environment.TickCount, Key.J)
+                { RoutedEvent = Keyboard.PreviewKeyDownEvent });
+            await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+            check(calls == 6, "Alt+Shift+J in the toast uses the same Now Playing action as a click");
+            modifiers |= ModifierKeys.Control;
+            title.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, source, Environment.TickCount, Key.J)
+                { RoutedEvent = Keyboard.PreviewKeyDownEvent });
+            modifiers = ModifierKeys.Alt | ModifierKeys.Shift;
+            title.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, source, Environment.TickCount, Key.R)
+                { RoutedEvent = Keyboard.PreviewKeyDownEvent });
+            check(calls == 6, "toast shortcut ignores extra modifiers and unrelated Spotify shortcuts");
+            modifiers = ModifierKeys.None;
             check(title.Focusable && artist.Focusable && !window.ShowActivated && !window.ShowInTaskbar,
                 "keyboard links preserve non-activating tray toast behavior");
         }
         finally { window.Close(); }
 
         var attempts = 0;
-        var retry = new ToastWindow(TrackInfo.Empty, settings, (_, _) =>
+        var retry = new ToastWindow(TrackInfo.Empty, settings, _ =>
         {
             attempts++;
             return attempts == 1 ? Task.FromException<SpotifyTrackOpenResult>(new InvalidOperationException("fake failure"))
-                : Task.FromResult(SpotifyTrackOpenResult.AppActivated);
+                : Task.FromResult(SpotifyTrackOpenResult.NowPlayingRequested);
         });
         Click(retry);
         check(((FrameworkElement)retry.FindName("ToastBorder")).ToolTip.ToString()!.Contains("Impossibile"),
@@ -63,8 +77,15 @@ internal static class ToastTests
             "failed opening can be retried, including when track URI is unavailable");
         retry.Close();
 
+        var activationOnly = new ToastWindow(TrackInfo.Empty, settings,
+            _ => Task.FromResult(SpotifyTrackOpenResult.AppActivated));
+        Click(activationOnly);
+        check(((FrameworkElement)activationOnly.FindName("ToastBorder")).ToolTip.ToString()!.Contains("comando In riproduzione non confermato"),
+            "toast distinguishes Spotify activation from a blocked Now Playing navigation");
+        activationOnly.Close();
+
         CancellationToken token = default;
-        var canceled = new ToastWindow(TrackInfo.Empty, settings, (_, cancellation) =>
+        var canceled = new ToastWindow(TrackInfo.Empty, settings, cancellation =>
         {
             token = cancellation;
             return Task.Delay(Timeout.Infinite, cancellation).ContinueWith<SpotifyTrackOpenResult>(
@@ -90,7 +111,7 @@ internal static class ToastTests
         };
         var timed = new ToastWindow(new TrackInfo("Timed song", "Artist", "Album",
             Position: TimeSpan.FromSeconds(10), Duration: TimeSpan.FromMinutes(2), IsPlaying: true),
-            timedSettings, (_, cancellation) =>
+            timedSettings, cancellation =>
             {
                 timedToken = cancellation;
                 activationRequested.TrySetResult();
@@ -122,16 +143,114 @@ internal static class ToastTests
                 "ShowTimed toast survives its 500ms timeout while Spotify activation remains pending");
             check(timeline.Text != initialTimeline,
                 "song timeline continues while the toast lifetime timer is paused for activation");
-            activation.SetResult(SpotifyTrackOpenResult.AppActivated);
+            activation.SetResult(SpotifyTrackOpenResult.NowPlayingRequested);
             await timedClosed.Task.WaitAsync(TimeSpan.FromSeconds(3));
             check(!timed.IsVisible,
                 "ShowTimed toast resumes its lifetime timer and closes after activation completes");
         }
         finally
         {
-            activation.TrySetResult(SpotifyTrackOpenResult.AppActivated);
+            activation.TrySetResult(SpotifyTrackOpenResult.NowPlayingRequested);
             if (!timedClosed.Task.IsCompleted) timed.Close();
         }
+
+        await VerifyVisibleToastShortcutAsync(check);
+    }
+
+    private static async Task VerifyVisibleToastShortcutAsync(Action<bool, string> check)
+    {
+        Action? globalPress = null;
+        var registered = false;
+        var suspended = false;
+        long clock = 0;
+        using var hotkeys = new ToastNowPlayingHotkeyCoordinator(
+            callback => { globalPress = callback; registered = true; return true; },
+            () => registered = false,
+            () => { suspended = true; return new EndScope(() => suspended = false); },
+            delay: duration => { clock += (long)duration.TotalMilliseconds; return Task.CompletedTask; },
+            clock: () => clock);
+        var firstCalls = 0;
+        var secondCalls = 0;
+        var pending = new TaskCompletionSource<SpotifyTrackOpenResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var first = new ToastWindow(TrackInfo.Empty, new AppSettings(), _ =>
+        {
+            firstCalls++;
+            return Task.FromResult(SpotifyTrackOpenResult.NowPlayingRequested);
+        }, hotkeys: hotkeys) { Opacity = 0, ShowActivated = false };
+        var second = new ToastWindow(TrackInfo.Empty, new AppSettings { ApplicationLanguage = "Italian" }, _ =>
+        {
+            secondCalls++;
+            check(suspended && !registered, "toast suspends its global shortcut before the navigation callback");
+            return pending.Task;
+        }, () => ModifierKeys.Alt | ModifierKeys.Shift, hotkeys) { Opacity = 0, ShowActivated = false };
+        first.Loaded += (_, _) => { first.Left = -10000; first.Top = -10000; };
+        second.Loaded += (_, _) => { second.Left = -10000; second.Top = -10000; };
+        first.Show(); second.Show();
+        try
+        {
+            check(registered && hotkeys.IsGlobalRegistered, "visible overlapping WPF toasts attach the shared shortcut host");
+            globalPress!();
+            check(firstCalls == 0 && secondCalls == 1, "global toast shortcut navigates once through the latest visible toast");
+            Click(first);
+            check(firstCalls == 0 && secondCalls == 1, "clicking another toast cannot overlap an ongoing global navigation");
+            first.Close();
+            pending.SetResult(SpotifyTrackOpenResult.NowPlayingRequested);
+            var restoreDeadline = DateTime.UtcNow.AddSeconds(3);
+            while (!registered && DateTime.UtcNow < restoreDeadline) await Task.Delay(20);
+            check(registered && hotkeys.IsGlobalRegistered, "closing the older toast preserves the newer toast shortcut after handoff");
+            second.Hide();
+            check(!registered && !hotkeys.IsGlobalRegistered, "hiding the last WPF toast releases the temporary shortcut");
+            second.Show();
+            check(registered, "showing a toast again reacquires its shortcut lease");
+            hotkeys.Enabled = false;
+            check(!registered && ((FrameworkElement)second.FindName("ToastBorder")).ToolTip.ToString()!.Contains("disattivata"),
+                "disabling global hotkeys updates the visible toast's local-fallback hint");
+            var source = PresentationSource.FromVisual(second)!;
+            ((UIElement)second.FindName("Title1")).RaiseEvent(
+                new KeyEventArgs(Keyboard.PrimaryDevice, source, Environment.TickCount, Key.J)
+                { RoutedEvent = Keyboard.PreviewKeyDownEvent });
+            await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+            check(secondCalls == 2 && !registered, "local Alt+Shift+J still navigates while global hotkeys are disabled");
+        }
+        finally
+        {
+            pending.TrySetResult(SpotifyTrackOpenResult.NowPlayingRequested);
+            if (first.IsVisible) first.Close();
+            second.Close();
+        }
+        check(!registered, "closing all WPF toasts leaves no temporary shortcut registered");
+
+        using var occupied = new ToastNowPlayingHotkeyCoordinator(_ => false, () => { },
+            () => new DeniedScope(), _ => Task.CompletedTask);
+        var activated = 0;
+        var forwarded = 0;
+        var fallback = new ToastWindow(TrackInfo.Empty, new AppSettings(), _ =>
+        {
+            forwarded++;
+            return Task.FromResult(SpotifyTrackOpenResult.NowPlayingRequested);
+        }, hotkeys: occupied, activateSpotify: _ =>
+        {
+            activated++;
+            return Task.FromResult(SpotifyTrackOpenResult.AppActivated);
+        });
+        try
+        {
+            Click(fallback);
+            check(activated == 1 && forwarded == 0,
+                "occupied foreign shortcut opens Spotify without forwarding navigation input to its owner");
+        }
+        finally { fallback.Close(); }
+    }
+
+    private sealed class DeniedScope : IToastShortcutSuspension
+    {
+        public bool CanForwardShortcut => false;
+        public void Dispose() { }
+    }
+
+    private sealed class EndScope(Action end) : IDisposable
+    {
+        public void Dispose() => end();
     }
 
     private static void Click(UIElement element)

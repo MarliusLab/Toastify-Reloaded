@@ -30,22 +30,44 @@ public partial class ToastWindow : Window
     private readonly DateTimeOffset _timelineSnapshotAt;
     private bool _fadeOutStarted;
     private bool _secondPositionPassScheduled;
-    private readonly string? _trackUri;
-    private readonly Func<string?, CancellationToken, Task<SpotifyTrackOpenResult>> _openTrack;
+    private readonly Func<CancellationToken, Task<SpotifyTrackOpenResult>> _openTrack;
+    private readonly Func<CancellationToken, Task<SpotifyTrackOpenResult>> _activateSpotify;
+    private readonly Func<ModifierKeys> _getModifiers;
+    private readonly ToastNowPlayingHotkeyCoordinator? _toastHotkeys;
+    private IDisposable? _toastHotkeyLease;
+    private bool _globalShortcutAvailable;
+    private SpotifyTrackOpenResult _lastOpenResult = SpotifyTrackOpenResult.NowPlayingRequested;
     private readonly CancellationTokenSource _openCancellation = new();
     private bool _openingSpotify;
     private bool _closed;
 
     public ToastWindow(TrackInfo track, AppSettings settings)
-        : this(track, settings, new SpotifyTrackOpenService().OpenAsync)
+        : this(track, settings, new SpotifyTrackOpenService(), hotkeys: null)
+    {
+    }
+
+    internal ToastWindow(TrackInfo track, AppSettings settings, ToastNowPlayingHotkeyCoordinator? hotkeys)
+        : this(track, settings, new SpotifyTrackOpenService(), hotkeys)
+    {
+    }
+
+    private ToastWindow(TrackInfo track, AppSettings settings, SpotifyTrackOpenService service,
+        ToastNowPlayingHotkeyCoordinator? hotkeys)
+        : this(track, settings, service.OpenNowPlayingAsync, hotkeys: hotkeys,
+            activateSpotify: token => service.OpenAsync(cancellationToken: token))
     {
     }
 
     internal ToastWindow(TrackInfo track, AppSettings settings,
-        Func<string?, CancellationToken, Task<SpotifyTrackOpenResult>> openTrack)
+        Func<CancellationToken, Task<SpotifyTrackOpenResult>> openTrack,
+        Func<ModifierKeys>? getModifiers = null,
+        ToastNowPlayingHotkeyCoordinator? hotkeys = null,
+        Func<CancellationToken, Task<SpotifyTrackOpenResult>>? activateSpotify = null)
     {
-        _trackUri = track.TrackUri;
         _openTrack = openTrack;
+        _activateSpotify = activateSpotify ?? openTrack;
+        _getModifiers = getModifiers ?? (() => Keyboard.Modifiers);
+        _toastHotkeys = hotkeys;
         _settings = settings;
         _timelineStartPosition = track.Position < TimeSpan.Zero ? TimeSpan.Zero : track.Position;
         _trackDuration = track.Duration < TimeSpan.Zero ? TimeSpan.Zero : track.Duration;
@@ -65,7 +87,7 @@ public partial class ToastWindow : Window
             Title1.Text = track.Title;
             Title2.Text = track.Artist;
         }
-        SetOpenSpotifyHint(failed: false);
+        SetOpenSpotifyHint(SpotifyTrackOpenResult.NowPlayingRequested);
 
         ToastBorder.BorderThickness = new Thickness(Math.Max(0, settings.ToastBorderThickness));
         ToastBorder.CornerRadius = new CornerRadius(
@@ -116,20 +138,42 @@ public partial class ToastWindow : Window
 
         Loaded += (_, _) =>
         {
+            UpdateToastHotkeyLease();
             UpdateTimelineDisplay();
             if (settings.ShowSongProgressBar || settings.ShowSongDuration)
                 _timelineTimer.Start();
             PositionToast();
             ScheduleSecondPositionPass();
         };
+        IsVisibleChanged += (_, _) => UpdateToastHotkeyLease();
         Closed += (_, _) =>
         {
             _closed = true;
+            _toastHotkeyLease?.Dispose();
+            _toastHotkeyLease = null;
             _openCancellation.Cancel();
             _openCancellation.Dispose();
             _timer.Stop();
             _timelineTimer.Stop();
         };
+    }
+
+    private void UpdateToastHotkeyLease()
+    {
+        if (IsVisible && !_closed && _toastHotkeys is not null)
+        {
+            _toastHotkeyLease ??= _toastHotkeys.Attach(OpenSpotifyAsync, available =>
+            {
+                _globalShortcutAvailable = available;
+                if (!_closed) SetOpenSpotifyHint(_lastOpenResult);
+            });
+        }
+        else
+        {
+            _toastHotkeyLease?.Dispose();
+            _toastHotkeyLease = null;
+            _globalShortcutAvailable = false;
+        }
     }
 
     public void ShowTimed()
@@ -606,10 +650,18 @@ public partial class ToastWindow : Window
 
     private async void Title_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
-        if (e.Key is not (Key.Enter or Key.Space) || Keyboard.Modifiers != ModifierKeys.None)
+        if (e.Key is not (Key.Enter or Key.Space) || _getModifiers() != ModifierKeys.None)
             return;
         e.Handled = true;
-        await OpenSpotifyAsync();
+        if (!e.IsRepeat) await OpenSpotifyAsync();
+    }
+
+    private async void Window_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        if (key != Key.J || _getModifiers() != (ModifierKeys.Alt | ModifierKeys.Shift)) return;
+        e.Handled = true;
+        if (!e.IsRepeat) await OpenSpotifyAsync();
     }
 
     private async Task OpenSpotifyAsync()
@@ -620,13 +672,19 @@ public partial class ToastWindow : Window
         _timer.Stop();
         try
         {
-            var result = await _openTrack(_trackUri, _openCancellation.Token);
-            if (!_closed) SetOpenSpotifyHint(result == SpotifyTrackOpenResult.Failed);
+            async Task NavigateAsync()
+            {
+                var action = _toastHotkeys?.CanForwardShortcut == false ? _activateSpotify : _openTrack;
+                var result = await action(_openCancellation.Token);
+                if (!_closed) SetOpenSpotifyHint(result);
+            }
+            if (_toastHotkeys is null) await NavigateAsync();
+            else await _toastHotkeys.RunSuspendedAsync(NavigateAsync);
         }
         catch (OperationCanceledException) when (_closed || _openCancellation.IsCancellationRequested) { }
         catch
         {
-            if (!_closed) SetOpenSpotifyHint(failed: true);
+            if (!_closed) SetOpenSpotifyHint(SpotifyTrackOpenResult.Failed);
         }
         finally
         {
@@ -635,12 +693,26 @@ public partial class ToastWindow : Window
         }
     }
 
-    private void SetOpenSpotifyHint(bool failed)
+    private void SetOpenSpotifyHint(SpotifyTrackOpenResult result)
     {
+        _lastOpenResult = result;
         var italian = string.Equals(_settings.ApplicationLanguage, "Italian", StringComparison.OrdinalIgnoreCase);
-        var hint = failed
-            ? (italian ? "Impossibile aprire Spotify. Verifica che sia installato e riprova." : "Could not open Spotify. Check that it is installed and try again.")
-            : (italian ? "Apri Spotify (Ctrl+trascina per spostare il toast)" : "Open Spotify (Ctrl+drag to move the toast)");
+        var hint = result switch
+        {
+            SpotifyTrackOpenResult.Failed => italian
+                ? "Impossibile completare il comando Spotify. Verifica l'app, rilascia i tasti e riprova."
+                : "Could not complete the Spotify command. Check the app, release the keys and try again.",
+            SpotifyTrackOpenResult.AppActivated => italian
+                ? "Spotify aperto; comando In riproduzione non confermato. Rilascia i tasti e riprova."
+                : "Spotify opened; Now Playing command was not confirmed. Release the keys and try again.",
+            _ => italian
+                ? "Apri Spotify e vai a In riproduzione (Alt+Maiusc+J; Ctrl+trascina per spostare il toast)"
+                : "Open Spotify and go to Now Playing (Alt+Shift+J; Ctrl+drag to move the toast)"
+        };
+        if (!_globalShortcutAvailable)
+            hint += italian
+                ? " Scorciatoia globale occupata o disattivata: usa il clic oppure Enter/Spazio nel toast."
+                : " Global shortcut occupied or disabled: click or use Enter/Space in the toast.";
         ToastBorder.ToolTip = hint;
         System.Windows.Automation.AutomationProperties.SetName(Title1, $"{Title1.Text}. {hint}");
         System.Windows.Automation.AutomationProperties.SetName(Title2, $"{Title2.Text}. {hint}");

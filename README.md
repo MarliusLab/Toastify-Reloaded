@@ -54,6 +54,8 @@ Version 1.3.8 adds toast clicks that open/restore Spotify and retains the Spotif
 
 Toast clicks support keyboard activation and safe fallbacks. See [Windows toast behavior and track-identity limits](docs/WINDOWS_TOAST.md).
 
+Windows 1.3.9 is prepared for publication after CI. It adds Spotify's **Go to Now Playing** command after toast activation and **Alt+Shift+J while a toast is visible**, preserving playback and existing settings.
+
 If a running 1.3.5/1.3.6 is already stuck updating, choose **Exit** from the Toastify tray menu and run the new installer manually once. See [Windows maintenance and progress](docs/WINDOWS_MAINTENANCE.md).
 
 ### Linux — stable 1.4.1

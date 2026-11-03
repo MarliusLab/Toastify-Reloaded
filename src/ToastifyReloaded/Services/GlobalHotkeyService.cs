@@ -8,9 +8,19 @@ namespace ToastifyReloaded.Services;
 public sealed class GlobalHotkeyService : IDisposable
 {
     private readonly IntPtr _windowHandle;
-    private readonly HwndSource _source;
+    private readonly HwndSource? _source;
+    private readonly Func<int, uint, uint, bool> _registerHotkey;
+    private readonly Action<int> _unregisterHotkey;
     private readonly Dictionary<int, HotkeyAction> _registrations = new();
+    private HotkeyAction? _nowPlayingUserAction;
+    private Action? _toastNowPlaying;
+    private bool _nowPlayingRegistered;
+    private bool _registeredForToast;
+    private int _nowPlayingSuspensions;
+    private int _nowPlayingId = 0x5000;
     private bool _disposed;
+
+    public ToastNowPlayingHotkeyCoordinator ToastNowPlaying { get; }
 
     public event EventHandler<HotkeyAction>? HotkeyPressed;
 
@@ -37,6 +47,19 @@ public sealed class GlobalHotkeyService : IDisposable
         }
 
         _source.AddHook(WndProc);
+        _registerHotkey = (id, modifiers, key) => NativeMethods.RegisterHotKey(_windowHandle, id, modifiers, key);
+        _unregisterHotkey = id => { NativeMethods.UnregisterHotKey(_windowHandle, id); };
+        ToastNowPlaying = new ToastNowPlayingHotkeyCoordinator(
+            SetToastNowPlaying, ClearToastNowPlaying, SuspendNowPlaying);
+    }
+
+    internal GlobalHotkeyService(Func<int, uint, uint, bool> registerHotkey, Action<int> unregisterHotkey,
+        Func<TimeSpan, Task>? delay = null, Func<long>? clock = null)
+    {
+        _registerHotkey = registerHotkey;
+        _unregisterHotkey = unregisterHotkey;
+        ToastNowPlaying = new ToastNowPlayingHotkeyCoordinator(
+            SetToastNowPlaying, ClearToastNowPlaying, SuspendNowPlaying, delay, clock);
     }
 
     public IReadOnlyList<string> RegisterAll(IEnumerable<HotkeyBinding> bindings)
@@ -64,7 +87,19 @@ public sealed class GlobalHotkeyService : IDisposable
             }
 
             var vk = (uint)KeyInterop.VirtualKeyFromKey(key);
-            if (!NativeMethods.RegisterHotKey(_windowHandle, id, modifiers | NativeMethods.MOD_NOREPEAT, vk))
+            if (modifiers == (NativeMethods.MOD_ALT | NativeMethods.MOD_SHIFT) && vk == 0x4A)
+            {
+                if (_nowPlayingUserAction.HasValue)
+                {
+                    errors.Add($"{binding.ActionLabel}: scorciatoia duplicata ({binding.Shortcut}).");
+                    continue;
+                }
+                // Keep the user's assignment intact. Visible toasts temporarily
+                // take precedence; suspension releases only this exact chord.
+                _nowPlayingUserAction = binding.Action;
+                continue;
+            }
+            if (!_registerHotkey(id, modifiers | NativeMethods.MOD_NOREPEAT, vk))
             {
                 errors.Add($"{binding.ActionLabel}: {binding.Shortcut} è già usata da Windows o da un altro programma.");
                 continue;
@@ -73,6 +108,11 @@ public sealed class GlobalHotkeyService : IDisposable
             _registrations[id] = binding.Action;
             id++;
         }
+
+        var nowPlayingAvailable = RefreshNowPlayingRegistration();
+        if (_nowPlayingUserAction.HasValue && !nowPlayingAvailable && _nowPlayingSuspensions == 0)
+            errors.Add("Alt+Shift+J è già usata da Windows o da un altro programma.");
+        ToastNowPlaying.RefreshRegistration();
 
         return errors;
     }
@@ -132,20 +172,99 @@ public sealed class GlobalHotkeyService : IDisposable
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
-        if (msg == NativeMethods.WM_HOTKEY && _registrations.TryGetValue(wParam.ToInt32(), out var action))
+        if (msg == NativeMethods.WM_HOTKEY) handled = DispatchHotkey(wParam.ToInt32());
+        return IntPtr.Zero;
+    }
+
+    internal bool DispatchHotkey(int id)
+    {
+        if (id == _nowPlayingId && _nowPlayingRegistered)
+        {
+            if (_toastNowPlaying is not null) _toastNowPlaying();
+            else if (_nowPlayingUserAction is { } nowPlayingAction) HotkeyPressed?.Invoke(this, nowPlayingAction);
+            return true;
+        }
+        if (_registrations.TryGetValue(id, out var action))
         {
             HotkeyPressed?.Invoke(this, action);
-            handled = true;
+            return true;
         }
-
-        return IntPtr.Zero;
+        return false;
     }
 
     private void UnregisterAll()
     {
         foreach (var id in _registrations.Keys)
-            NativeMethods.UnregisterHotKey(_windowHandle, id);
+            _unregisterHotkey(id);
         _registrations.Clear();
+        _nowPlayingUserAction = null;
+        RefreshNowPlayingRegistration();
+    }
+
+    private bool SetToastNowPlaying(Action callback)
+    {
+        _toastNowPlaying = callback;
+        return RefreshNowPlayingRegistration();
+    }
+
+    private void ClearToastNowPlaying()
+    {
+        _toastNowPlaying = null;
+        RefreshNowPlayingRegistration();
+    }
+
+    private bool RefreshNowPlayingRegistration()
+    {
+        var wanted = !_disposed && _nowPlayingSuspensions == 0 &&
+            (_toastNowPlaying is not null || _nowPlayingUserAction.HasValue);
+        var forToast = _toastNowPlaying is not null;
+        if (_nowPlayingRegistered && (!wanted || _registeredForToast != forToast))
+        {
+            _unregisterHotkey(_nowPlayingId);
+            _nowPlayingRegistered = false;
+        }
+        if (!wanted || _nowPlayingRegistered) return _nowPlayingRegistered;
+        // Change IDs on every acquisition so queued messages from an old toast
+        // cannot turn into the user's playback action after ownership changes.
+        NextNowPlayingId();
+        _nowPlayingRegistered = _registerHotkey(_nowPlayingId,
+            NativeMethods.MOD_ALT | NativeMethods.MOD_SHIFT | NativeMethods.MOD_NOREPEAT, 0x4A);
+        _registeredForToast = forToast;
+        return _nowPlayingRegistered;
+    }
+
+    private IDisposable SuspendNowPlaying()
+    {
+        var canForward = _nowPlayingRegistered;
+        _nowPlayingSuspensions++;
+        RefreshNowPlayingRegistration();
+        if (!canForward && !_disposed)
+        {
+            // Even with global hotkeys disabled, forwarding this chord would
+            // trigger another application's registration. Probe availability
+            // first, and release only a probe which this host actually owns.
+            var probe = NextNowPlayingId();
+            canForward = _registerHotkey(probe,
+                NativeMethods.MOD_ALT | NativeMethods.MOD_SHIFT | NativeMethods.MOD_NOREPEAT, 0x4A);
+            if (canForward) _unregisterHotkey(probe);
+        }
+        return new ResumeNowPlaying(this, canForward);
+    }
+
+    private int NextNowPlayingId()
+        => _nowPlayingId = _nowPlayingId >= 0x7fff ? 0x5000 : _nowPlayingId + 1;
+
+    private sealed class ResumeNowPlaying(GlobalHotkeyService owner, bool canForward) : IToastShortcutSuspension
+    {
+        private bool _disposed;
+        public bool CanForwardShortcut { get; } = canForward;
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+            owner._nowPlayingSuspensions--;
+            owner.RefreshNowPlayingRegistration();
+        }
     }
 
     public void Dispose()
@@ -153,9 +272,10 @@ public sealed class GlobalHotkeyService : IDisposable
         if (_disposed)
             return;
 
-        UnregisterAll();
-        _source.RemoveHook(WndProc);
-        _source.Dispose();
         _disposed = true;
+        ToastNowPlaying.Dispose();
+        UnregisterAll();
+        _source?.RemoveHook(WndProc);
+        _source?.Dispose();
     }
 }
