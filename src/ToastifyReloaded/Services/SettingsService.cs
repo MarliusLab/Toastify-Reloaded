@@ -13,9 +13,14 @@ public sealed class SettingsService
         Converters = { new JsonStringEnumConverter() }
     };
 
-    public string SettingsDirectory { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "ToastifyReloaded");
+    public string SettingsDirectory { get; }
+
+    public SettingsService(string? settingsDirectory = null)
+    {
+        SettingsDirectory = settingsDirectory ?? Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "ToastifyReloaded");
+    }
 
     public string SettingsPath => Path.Combine(SettingsDirectory, "settings.json");
 

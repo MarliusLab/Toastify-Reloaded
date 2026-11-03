@@ -1,6 +1,6 @@
 # Changelog
 
-The 2026-11-03 releases below are published in [GitHub Releases](https://github.com/MarliusLab/Toastify-Reloaded/releases); historical tags are preserved.
+Published releases are listed in [GitHub Releases](https://github.com/MarliusLab/Toastify-Reloaded/releases). Entries marked prepared await publication; historical tags are preserved.
 
 ## 1.5.0-macos-rc.2 - 2026-11-03 (prerelease)
 
@@ -20,6 +20,18 @@ The 2026-11-03 releases below are published in [GitHub Releases](https://github.
 - Added `xdg-utils` as a DEB dependency and updated x64/ARM64 package version defaults.
 - Added shared regression checks, native headless tests, isolated X11 startup checks and package validation to release gates.
 - Preserved configuration, themes, hotkeys, playback controls and desktop/autostart identifiers. Headless tests now use temporary settings rather than the user's configuration.
+
+## 1.3.7 - 2026-11-03 (prepared Windows stable patch)
+
+- Fixed startup ordering so Spotify and Spicetify versions are discovered before automatic update downloads. Both fields complete independently; media startup/polling and the minimized-start preference are preserved during maintenance.
+- Moved version discovery off the UI thread with bounded waits and cancellation. Added desktop/registered/Scoop Spotify paths and Microsoft Store package metadata; Spicetify discovery refreshes user/machine PATH and checks known installer/package-manager locations.
+- Added real download byte counts and a percentage when the server supplies its size. Unknown-size downloads show received bytes with an indeterminate bar. Download, verification, Windows permission and installer handoff have separate states.
+- Added cancellation before Windows elevation, a 10-minute total download limit, a 30-second idle limit and a 25-second release-metadata limit. Failed/canceled downloads remove temporary installers, show a retryable result and restore maintenance buttons.
+- Hardened hidden-command timeout/cancellation and bounded output cleanup, including pipes retained by a child process. Repair reuses the resolved Spicetify executable and receives application-lifetime cancellation.
+- Restored visible native NSIS installation progress for in-app updates. Only update launches skip the normal wizard pages; manual installation remains interactive. Invalid PIDs or an unsuccessful process-exit wait stop the update before installed files are overwritten.
+- Preserved the settings schema, themes, hotkeys, playback controls and repair flow. A running 1.3.5/1.3.6 build must be exited from the tray and upgraded manually to 1.3.7 once to receive these updater fixes.
+- Local validation: 74 Windows maintenance checks passed, including real WPF progress/error/cancel/retry behavior and synthetic updater/repair fixtures. Read-only host probes detected Spotify 1.3.6.1921 and Spicetify 2.46.4. No actual installer or Windows elevation prompt was launched during local tests.
+- See [Windows maintenance and the one-time upgrade](docs/WINDOWS_MAINTENANCE.md) for behavior, limits and verification scope.
 
 ## 1.3.6 - 2026-11-03 (Windows stable patch)
 

@@ -24,11 +24,11 @@ namespace ToastifyReloaded;
 
 public partial class MainWindow : Window
 {
-    private readonly SettingsService _settingsService = new();
+    private readonly SettingsService _settingsService;
     private readonly SpotifySessionService _spotify = new();
     private readonly SpotifyInstallationService _spotifyInstallation = new();
     private readonly CompatibilityRepairService _compatibility = new();
-    private readonly UpdateService _updateService = new();
+    private readonly UpdateService _updateService;
     private readonly DispatcherTimer _pollTimer;
     private readonly DispatcherTimer _compatibilityTimer;
     private readonly DispatcherTimer _updateTimer;
@@ -45,8 +45,17 @@ public partial class MainWindow : Window
     private bool _loadingHotkeyEditor;
     private bool _settingsWindowHiddenByUser;
 
-    public MainWindow()
+    public MainWindow() : this(maintenanceTestMode: false)
     {
+    }
+
+    internal MainWindow(bool maintenanceTestMode, UpdateService? updateService = null)
+    {
+        _maintenanceTestMode = maintenanceTestMode;
+        _updateService = updateService ?? new UpdateService();
+        _settingsService = maintenanceTestMode
+            ? new SettingsService(Path.Combine(Path.GetTempPath(), "Toastify-maintenance-preview-" + Guid.NewGuid().ToString("N")))
+            : new SettingsService();
         InitializeComponent();
 
         var warningIcon = LoadSystemIcon(32515); // IDI_WARNING
@@ -70,6 +79,16 @@ public partial class MainWindow : Window
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
+        if (_maintenanceTestMode)
+        {
+            LoadSettingsIntoUi();
+            LoadMaintenanceSettingsIntoUi();
+            AppVersionText.Text = _updateService.CurrentVersion;
+            ApplyApplicationTheme();
+            ApplyLocalization();
+            TabReloaded.IsSelected = true;
+            return;
+        }
         _settings = _settingsService.Load();
         _settings.StartWithWindows = StartupService.IsEnabled();
 
@@ -86,6 +105,15 @@ public partial class MainWindow : Window
 
         CreateTrayIcon();
         RegisterHotkeys();
+        if (_settings.StartMinimized || Environment.GetCommandLineArgs().Any(a => a.Equals("--minimized", StringComparison.OrdinalIgnoreCase)))
+        {
+            _settingsWindowHiddenByUser = true;
+            Hide();
+        }
+
+        // Version probes start immediately, independently of media initialization.
+        // A long automatic repair must not delay the normal media polling timer.
+        var compatibilityCheck = RunCompatibilityCheckAsync(automatic: true);
         await RefreshSpotifyStatusAsync();
         _pollTimer.Start();
         _compatibilityTimer.Start();
@@ -94,6 +122,8 @@ public partial class MainWindow : Window
         if (_settings.MinimizeSpotifyOnStartup)
             TryMinimizeSpotify();
 
+        await compatibilityCheck;
+
         if (_settings.AutoCheckToastifyUpdates)
         {
             var updateStarted = await CheckForToastifyUpdatesAsync(allowAutomaticInstall: true);
@@ -101,17 +131,12 @@ public partial class MainWindow : Window
                 return;
         }
 
-        await RunCompatibilityCheckAsync(automatic: true);
-
-        if (_settings.StartMinimized || Environment.GetCommandLineArgs().Any(a => a.Equals("--minimized", StringComparison.OrdinalIgnoreCase)))
-        {
-            _settingsWindowHiddenByUser = true;
-            Hide();
-        }
     }
 
     private void MainWindow_SourceInitialized(object? sender, EventArgs e)
     {
+        if (_maintenanceTestMode)
+            return;
         _globalHotkeys = new GlobalHotkeyService();
         _globalHotkeys.HotkeyPressed += async (_, action) => await ExecuteActionAsync(action);
     }
@@ -526,116 +551,196 @@ public partial class MainWindow : Window
 
     private async Task<bool> CheckForToastifyUpdatesAsync(bool allowAutomaticInstall, bool forceInstall = false)
     {
-        if (_updateCheckRunning)
+        if (_updateCheckRunning || _maintenanceRunning)
             return false;
 
         _updateCheckRunning = true;
+        _updateCancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetimeCancellation.Token);
+        UpdateMaintenanceButtons();
+        UpdateProgressPanel.Visibility = Visibility.Collapsed;
         try
         {
-            UpdateStatusText.Text = "Checking GitHub Releases…";
-            var result = await _updateService.CheckLatestAsync();
+            UpdateStatusText.Text = MaintenanceText("Checking GitHub Releases…", "Controllo delle versioni su GitHub…");
+            var result = await _updateService.CheckLatestAsync(_updateCancellation.Token);
             AppVersionText.Text = result.CurrentVersion;
             UpdateStatusText.Text = result.Message;
 
             if (!result.Success || !result.UpdateAvailable)
                 return false;
-
             if (!allowAutomaticInstall || (!_settings.AutoInstallToastifyUpdates && !forceInstall))
                 return false;
-
             if (string.IsNullOrWhiteSpace(result.DownloadUrl))
             {
-                UpdateStatusText.Text += " The installer for this architecture is not available.";
+                UpdateStatusText.Text = MaintenanceText("No installer is available for this architecture.",
+                    "Non è disponibile un installer per questa architettura.");
                 return false;
             }
 
-            UpdateStatusText.Text = $"Downloading and installing Toastify Reloaded {result.LatestVersion}…";
-            // Automatic updates must never bring the Settings window back to the foreground.
-            // Manual installs (Reloaded -> Install update) may reopen it after the upgrade.
+            var progress = new CallbackProgress<UpdateProgressInfo>(ReportMaintenanceProgress);
+            ReportMaintenanceProgress(new(UpdatePhase.Downloading));
             var started = await _updateService.PrepareAndLaunchUpdateAsync(
-                result,
-                Environment.ProcessId,
-                restartMinimized: !forceInstall);
+                result, Environment.ProcessId, restartMinimized: !forceInstall,
+                cancellationToken: _updateCancellation.Token, progress: progress);
             if (!started)
             {
-                UpdateStatusText.Text = "The updater could not be started.";
+                UpdateStatusText.Text = MaintenanceText("The installer could not be started. Please retry.",
+                    "Impossibile avviare l'installer. Riprova.");
                 return false;
             }
 
-            UpdateStatusText.Text = "Update ready. Toastify Reloaded will restart automatically.";
+            UpdateStatusText.Text = MaintenanceText("Installation started. Follow the installer progress bar.",
+                "Installazione avviata. Segui la barra nella finestra dell'installer.");
             _reallyExit = true;
-            Close();
+            // Close every toast window as well, releasing this PID immediately
+            // so the installer can replace files without waiting on a popup.
+            if (_maintenanceTestMode) Close();
+            else System.Windows.Application.Current.Shutdown();
             return true;
+        }
+        catch (UpdatePermissionCanceledException)
+        {
+            UpdateStatusText.Text = MaintenanceText("Installation canceled in the Windows permission request. You can retry.",
+                "Installazione annullata nella richiesta di Windows. Puoi riprovare.");
+            return false;
+        }
+        catch (OperationCanceledException)
+        {
+            UpdateStatusText.Text = MaintenanceText("Download canceled. You can retry.",
+                "Download annullato. Puoi riprovare.");
+            return false;
+        }
+        catch (TimeoutException)
+        {
+            UpdateStatusText.Text = MaintenanceText("The download stopped responding or exceeded its time limit. Check the connection and retry.",
+                "Il download non risponde o ha superato il tempo massimo. Controlla la connessione e riprova.");
+            return false;
         }
         catch (Exception ex)
         {
-            UpdateStatusText.Text = $"Update failed: {ex.Message}";
+            UpdateStatusText.Text = MaintenanceText("Update failed: ", "Aggiornamento non riuscito: ") + ex.Message;
             return false;
         }
         finally
         {
+            _updateHandoffPending = false;
+            FinishUpdateDisplay();
             _updateCheckRunning = false;
+            _updateCancellation.Dispose();
+            _updateCancellation = null;
+            UpdateMaintenanceButtons();
+            if (_exitAfterHandoffRequested && !_reallyExit)
+            {
+                _reallyExit = true;
+                Close();
+            }
         }
     }
 
     private async Task RunCompatibilityCheckAsync(bool automatic)
     {
-        if (_maintenanceRunning)
+        if (_maintenanceRunning || _updateCheckRunning)
             return;
 
         _maintenanceRunning = true;
+        UpdateMaintenanceButtons();
         try
         {
-            CompatibilityStatusText.Text = "Checking Spotify and Spicetify…";
-            var spotifyInfo = await _spotifyInstallation.GetInfoAsync();
-            var spicetifyVersion = await _compatibility.GetSpicetifyVersionAsync();
+            CompatibilityStatusText.Text = MaintenanceText("Checking Spotify and Spicetify…", "Rilevamento di Spotify e Spicetify…");
+            SpotifyVersionText.Text = MaintenanceText("Detecting…", "Rilevamento…");
+            SpicetifyVersionText.Text = MaintenanceText("Detecting…", "Rilevamento…");
+            var spotifyInfo = SpotifyInstallationInfo.NotFound;
+            var spicetifyVersion = string.Empty;
 
-            SpotifyVersionText.Text = spotifyInfo.IsDetected ? $"{spotifyInfo.Version} ({spotifyInfo.InstallKind})" : "Not detected";
-            SpicetifyVersionText.Text = string.IsNullOrWhiteSpace(spicetifyVersion) ? "Not detected" : spicetifyVersion;
+            async Task ProbeSpotifyAsync()
+            {
+                try
+                {
+                    spotifyInfo = await _spotifyInstallation.GetInfoAsync(_lifetimeCancellation.Token);
+                    SpotifyVersionText.Text = spotifyInfo.IsDetected
+                        ? $"{spotifyInfo.Version} ({spotifyInfo.InstallKind})"
+                        : MaintenanceText("Not detected", "Non rilevato");
+                }
+                catch (Exception)
+                {
+                    SpotifyVersionText.Text = MaintenanceText("Not detected (probe failed or timed out)",
+                        "Non rilevato (controllo non riuscito o scaduto)");
+                }
+            }
+
+            async Task ProbeSpicetifyAsync()
+            {
+                try
+                {
+                    spicetifyVersion = await _compatibility.GetSpicetifyVersionAsync(_lifetimeCancellation.Token);
+                    SpicetifyVersionText.Text = string.IsNullOrWhiteSpace(spicetifyVersion)
+                        ? MaintenanceText("Not detected", "Non rilevato") : spicetifyVersion;
+                }
+                catch (Exception)
+                {
+                    SpicetifyVersionText.Text = MaintenanceText("Not detected (probe failed or timed out)",
+                        "Non rilevato (controllo non riuscito o scaduto)");
+                }
+            }
+
+            // Publish each result as soon as it arrives; one slow/missing CLI
+            // cannot hide the other application's already detected version.
+            await Task.WhenAll(ProbeSpotifyAsync(), ProbeSpicetifyAsync());
+            _lifetimeCancellation.Token.ThrowIfCancellationRequested();
 
             if (!spotifyInfo.IsDetected)
             {
-                CompatibilityStatusText.Text = "Spotify version not detected. Open Spotify once and retry.";
+                CompatibilityStatusText.Text = MaintenanceText("Spotify was not detected. Open Spotify and retry.",
+                    "Spotify non è stato rilevato. Apri Spotify e riprova.");
                 return;
             }
-
+            if (string.IsNullOrWhiteSpace(spicetifyVersion))
+            {
+                CompatibilityStatusText.Text = MaintenanceText("Spotify detected; Spicetify is unavailable. Install it with Install / enable, then retry.",
+                    "Spotify rilevato; Spicetify non disponibile. Usa Installa / abilita, poi riprova.");
+                return;
+            }
             if (string.IsNullOrWhiteSpace(_settings.LastKnownSpotifyVersion))
             {
                 _settings.LastKnownSpotifyVersion = spotifyInfo.Version;
                 _settingsService.Save(_settings);
-                CompatibilityStatusText.Text = $"Baseline registered: Spotify {spotifyInfo.Version}.";
+                CompatibilityStatusText.Text = MaintenanceText($"Baseline registered: Spotify {spotifyInfo.Version}.",
+                    $"Versione iniziale registrata: Spotify {spotifyInfo.Version}.");
                 return;
             }
-
             if (_settings.LastKnownSpotifyVersion.Equals(spotifyInfo.Version, StringComparison.OrdinalIgnoreCase))
             {
-                CompatibilityStatusText.Text = $"Compatible: Spotify {spotifyInfo.Version}.";
+                CompatibilityStatusText.Text = MaintenanceText($"Compatible: Spotify {spotifyInfo.Version}.",
+                    $"Compatibile: Spotify {spotifyInfo.Version}.");
                 return;
             }
-
-            CompatibilityStatusText.Text = $"Spotify update detected: {_settings.LastKnownSpotifyVersion} → {spotifyInfo.Version}.";
-
+            CompatibilityStatusText.Text = MaintenanceText(
+                $"Spotify update detected: {_settings.LastKnownSpotifyVersion} → {spotifyInfo.Version}.",
+                $"Aggiornamento Spotify rilevato: {_settings.LastKnownSpotifyVersion} → {spotifyInfo.Version}.");
             if (!automatic || !_settings.AutoRepairAfterSpotifyUpdate)
                 return;
-
-            if (_settings.LastAutoRepairAttemptVersion.Equals(spotifyInfo.Version, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(_settings.LastAutoRepairAttemptVersion, spotifyInfo.Version, StringComparison.OrdinalIgnoreCase))
             {
-                CompatibilityStatusText.Text += " Automatic repair was already attempted for this version.";
+                CompatibilityStatusText.Text += MaintenanceText(" Automatic repair was already attempted for this version.",
+                    " La riparazione automatica è già stata tentata per questa versione.");
                 return;
             }
-
             _settings.LastAutoRepairAttemptVersion = spotifyInfo.Version;
             _settings.LastAutoRepairAttemptUtc = DateTimeOffset.UtcNow;
             _settingsService.Save(_settings);
             await RepairForSpotifyVersionAsync(spotifyInfo.Version, manual: false);
         }
+        catch (OperationCanceledException) when (_lifetimeCancellation.IsCancellationRequested)
+        {
+            // Closing the application cancels probes; never continue a repair.
+        }
         catch (Exception ex)
         {
-            CompatibilityStatusText.Text = $"Compatibility check failed: {ex.Message}";
+            CompatibilityStatusText.Text = MaintenanceText("Compatibility check failed: ", "Controllo compatibilità non riuscito: ") + ex.Message;
         }
         finally
         {
             _maintenanceRunning = false;
+            UpdateMaintenanceButtons();
         }
     }
 
@@ -645,7 +750,7 @@ public partial class MainWindow : Window
             ? $"Manual repair for Spotify {spotifyVersion}…"
             : $"New Spotify version {spotifyVersion}: automatic repair…";
 
-        var result = await _compatibility.RepairAsync(_settings);
+        var result = await _compatibility.RepairAsync(_settings, _lifetimeCancellation.Token);
         SpicetifyVersionText.Text = string.IsNullOrWhiteSpace(result.SpicetifyVersion) ? "Not detected" : result.SpicetifyVersion;
 
         if (result.Success)
@@ -655,7 +760,7 @@ public partial class MainWindow : Window
             _settings.LastAutoRepairAttemptUtc = DateTimeOffset.UtcNow;
             _settingsService.Save(_settings);
             CompatibilityStatusText.Text = $"✓ {result.Message}";
-            await Task.Delay(1000);
+            await Task.Delay(1000, _lifetimeCancellation.Token);
             await RefreshSpotifyStatusAsync();
         }
         else
@@ -882,15 +987,16 @@ public partial class MainWindow : Window
 
     private async void RepairSpotifyNow_Click(object sender, RoutedEventArgs e)
     {
-        if (_maintenanceRunning)
+        if (_maintenanceRunning || _updateCheckRunning)
             return;
 
         _maintenanceRunning = true;
+        UpdateMaintenanceButtons();
         try
         {
             SaveMaintenanceSettingsFromUi();
             _settingsService.Save(_settings);
-            var info = await _spotifyInstallation.GetInfoAsync();
+            var info = await _spotifyInstallation.GetInfoAsync(_lifetimeCancellation.Token);
             if (!info.IsDetected)
             {
                 CompatibilityStatusText.Text = "Cannot repair: Spotify version not detected.";
@@ -899,9 +1005,17 @@ public partial class MainWindow : Window
 
             await RepairForSpotifyVersionAsync(info.Version, manual: true);
         }
+        catch (OperationCanceledException) when (_lifetimeCancellation.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            CompatibilityStatusText.Text = MaintenanceText("Repair failed: ", "Riparazione non riuscita: ") + ex.Message;
+        }
         finally
         {
             _maintenanceRunning = false;
+            UpdateMaintenanceButtons();
         }
     }
 
@@ -984,6 +1098,22 @@ public partial class MainWindow : Window
 
     private void MainWindow_Closing(object? sender, CancelEventArgs e)
     {
+        if (_updateHandoffPending && _reallyExit)
+        {
+            // ShellExecute may still be showing UAC. Keep the awaiting process
+            // alive until Windows confirms or rejects the installer launch.
+            e.Cancel = true;
+            _exitAfterHandoffRequested = true;
+            _reallyExit = false;
+            UpdateStatusText.Text = MaintenanceText("Confirm or cancel the Windows permission request before exiting.",
+                "Conferma o annulla la richiesta di Windows prima di uscire.");
+            return;
+        }
+        if (_maintenanceTestMode)
+        {
+            _lifetimeCancellation.Cancel();
+            return;
+        }
         if (!_reallyExit)
         {
             e.Cancel = true;
@@ -992,6 +1122,7 @@ public partial class MainWindow : Window
             return;
         }
 
+        _lifetimeCancellation.Cancel();
         if (_settings.CloseSpotifyWithToastify)
         {
             try
