@@ -43,6 +43,11 @@ passed an interactive test.
 - Startup smoke tests use temporary configuration directories. Linux no
   longer treats a premature clean exit as a successful startup test and no
   longer kills unrelated `xbindkeys` processes.
+- After a repeated `hdiutil` space error in a later CI run, the DMG builder
+  reserves explicit HFS+ image capacity (payload plus 25% and 64 MiB), logs
+  host disk availability, verifies the completed image and removes staging
+  and incomplete output on failure. This avoids relying on automatic image
+  sizing; latest packaging results are linked from the pull request.
 
 ## Repeatable automated checks
 
