@@ -8,6 +8,7 @@
   <ItemGroup>
     <Compile Include="../../src/ToastifyReloaded.Linux/Services/ToastKeyboardNavigation.cs" Link="Linux/ToastKeyboardNavigation.cs" />
     <Compile Include="../../src/ToastifyReloaded.Linux/Services/LinuxRestartHandoff.cs" Link="Linux/LinuxRestartHandoff.cs" />
+    <Compile Include="../../src/ToastifyReloaded.Linux/Models/LinuxUpdateApplyResult.cs" Link="Linux/LinuxUpdateApplyResult.cs" />
     <Compile Include="../../src/ToastifyReloaded.Linux/Models/LinuxTrackInfo.cs" Link="Linux/TrackInfo.cs" />
     <Compile Include="../../src/ToastifyReloaded.Linux/Services/ProcessService.cs" Link="Linux/ProcessService.cs" />
     <Compile Include="../../src/ToastifyReloaded.Linux/Services/PlayerctlService.cs" Link="Linux/PlayerctlService.cs" />
@@ -16,6 +17,7 @@
     <Compile Include="../../src/ToastifyReloaded.Mac/Services/ProcessService.cs" Link="Mac/ProcessService.cs" />
     <Compile Include="../../src/ToastifyReloaded.Mac/Services/SpotifyAppleScriptService.cs" Link="Mac/SpotifyAppleScriptService.cs" />
     <Compile Include="../../src/ToastifyReloaded.Mac/Services/SpotifyTrackOpenService.cs" Link="Mac/TrackOpenService.cs" />
+    <Compile Include="../../src/ToastifyReloaded.Mac/Services/MacUpdateHandoff.cs" Link="Mac/MacUpdateHandoff.cs" />
   </ItemGroup>
 <ItemGroup>
     <Compile Include="../../src/ToastifyReloaded.Shared/*.cs" Link="Shared/%(Filename)%(Extension)" />

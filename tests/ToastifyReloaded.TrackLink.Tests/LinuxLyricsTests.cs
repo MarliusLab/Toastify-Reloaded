@@ -76,7 +76,33 @@ internal static class LinuxLyricsTests
         await controller.ExecuteAsync(() => { shown++; return Task.CompletedTask; });
         check(shown == 2, "Linux hidden or closed owners release the next Show Toast request");
         await TestWaylandShortcutPrecedenceAsync(check);
+        TestInstalledRestartOutcomes(check);
         await TestLegacyRestartAsync(check);
+    }
+
+    private static void TestInstalledRestartOutcomes(Action<bool, string> check)
+    {
+        foreach (var package in new[] { "AppImage aggiornata", "Pacchetto .deb aggiornato" })
+        {
+            var calls = 0;
+            var accepted = LinuxRestartHandoff.RequestAfterInstall(package, "verified-installed-path", () => { calls++; return true; });
+            check(accepted.Success && accepted.Installed && accepted.RestartStarted && calls == 1,
+                package + ": successful normal-user restart request retains committed-install state");
+            var rejected = LinuxRestartHandoff.RequestAfterInstall(package, "verified-installed-path", () => { calls++; return false; });
+            check(rejected.Success && rejected.Installed && !rejected.RestartStarted && calls == 2 &&
+                  rejected.Message.Contains("riaprilo manualmente") && rejected.DownloadedPath == "verified-installed-path",
+                package + ": rejected restart remains installed with manual-start instructions and no second launch");
+            foreach (var error in new Exception[] { new IOException("isolated helper failure"),
+                         new System.ComponentModel.Win32Exception(5), new OperationCanceledException("late cancellation") })
+            {
+                var failed = LinuxRestartHandoff.RequestAfterInstall(package, "verified-installed-path", () => throw error);
+                check(failed.Success && failed.Installed && !failed.RestartStarted && failed.Message.Contains(error.Message),
+                    package + ": post-commit " + error.GetType().Name + " cannot become an installation failure");
+            }
+        }
+        check(!new ToastifyReloaded.Linux.Models.LinuxUpdateApplyResult(true, true, "handoff only", null).Installed &&
+              !new ToastifyReloaded.Linux.Models.LinuxUpdateApplyResult(true, false, "archive ready", null).Installed,
+            "Linux native package handoff and manual archive readiness do not claim confirmed installation");
     }
 
     private static async Task TestWaylandShortcutPrecedenceAsync(Action<bool, string> check)

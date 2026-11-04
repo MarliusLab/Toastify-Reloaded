@@ -1,10 +1,30 @@
 using System.Diagnostics;
+using ToastifyReloaded.Linux.Models;
 
 namespace ToastifyReloaded.Linux.Services;
 
 /// <summary>Defers legacy restart until the old process has released its instance lease.</summary>
 internal static class LinuxRestartHandoff
 {
+    internal static LinuxUpdateApplyResult RequestAfterInstall(string installedMessage, string path, Func<bool> startRestart)
+    {
+        try
+        {
+            return startRestart()
+                ? new(true, true, installedMessage + "; riavvio richiesto dopo la chiusura della versione attuale.", path, Installed: true)
+                : new(true, false, ManualRestartMessage(installedMessage), path, Installed: true);
+        }
+        catch (Exception error)
+        {
+            // The files/package are already committed. A failed restart (even
+            // late cancellation) cannot undo the successful installation.
+            return new(true, false, ManualRestartMessage(installedMessage) + " Dettagli: " + error.Message, path, Installed: true);
+        }
+    }
+
+    internal static string ManualRestartMessage(string installedMessage)
+        => installedMessage + ". L'avvio automatico non è riuscito: chiudi Toastify Reloaded e riaprilo manualmente. Le impostazioni sono state conservate.";
+
     internal const string Script = """
 #!/bin/sh
 set -eu

@@ -95,15 +95,17 @@ public sealed class MacUpdateInstallerService
             return new(true, false, "Aggiornamento verificato ed estratto; installa il bundle dalla cartella scaricata.", apps[0]);
         }
         cancellationToken.ThrowIfCancellationRequested();
-        var helper = CreateReplacementHelper(current, apps[0], Environment.ProcessId, restartMinimized);
+        var helper = MacUpdateHandoff.Create(current, apps[0], Environment.ProcessId, restartMinimized,
+            resultDirectory: Path.GetDirectoryName(downloadedPath));
         progress?.Report(new(UpdateOperationStage.WaitingForPermission,
             Message: "Chiudi Toastify e segui l'eventuale autorizzazione macOS; il riavvio avviene come utente normale."));
         cancellationToken.ThrowIfCancellationRequested();
         if (Process.Start(new ProcessStartInfo
         {
-            FileName = "/bin/sh", UseShellExecute = false, CreateNoWindow = true, ArgumentList = { helper }
+            FileName = "/bin/sh", UseShellExecute = false, CreateNoWindow = true, ArgumentList = { helper.Helper }
         }) is null) return new(false, false, "Impossibile avviare l'assistente aggiornamento.", downloadedPath);
-        return new(true, true, "Assistente aggiornamento avviato; sostituirà il bundle dopo la chiusura di Toastify.", downloadedPath);
+        return new(true, true, "Assistente aggiornamento avviato; sostituirà il bundle dopo la chiusura di Toastify. " +
+            "Esito e diagnostica: " + helper.Receipt + " / " + helper.Log, downloadedPath);
     }
 
     internal static MacUpdateAsset? SelectAsset(MacUpdateInfo update, Architecture architecture)
@@ -127,63 +129,5 @@ public sealed class MacUpdateInstallerService
     }
 
     internal static string CreateReplacementHelper(string currentApp, string newApp, int pid, bool minimized = false)
-    {
-        if (pid <= 0 || !Path.IsPathRooted(currentApp) || !currentApp.EndsWith(".app", StringComparison.OrdinalIgnoreCase) ||
-            !Path.IsPathRooted(newApp) || !newApp.EndsWith(".app", StringComparison.OrdinalIgnoreCase))
-            throw new ArgumentException("Invalid macOS update handoff.");
-        var helperRoot = Path.Combine(Path.GetTempPath(), "ToastifyReloaded-update-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(helperRoot);
-        var worker = Path.Combine(helperRoot, "replace.sh");
-        var appleScript = Path.Combine(helperRoot, "elevate.applescript");
-        var helper = Path.Combine(helperRoot, "apply-update.sh");
-        File.WriteAllText(worker, """
-#!/bin/sh
-set -eu
-current=$1
-staged=$2
-nonce=$3
-candidate="$current.update-$nonce"
-backup="$current.previous-$nonce"
-[ ! -e "$candidate" ] && [ ! -e "$backup" ] || exit 73
-trap '/bin/rm -rf -- "$candidate"' EXIT
-/usr/bin/ditto "$staged" "$candidate"
-/bin/mv "$current" "$backup"
-if /bin/mv "$candidate" "$current"; then
-  /bin/rm -rf -- "$backup"
-else
-  /bin/mv "$backup" "$current"
-  exit 1
-fi
-""");
-        File.WriteAllText(appleScript, """
-on run argv
-    set commandText to "/bin/sh " & quoted form of (item 1 of argv) & " " & quoted form of (item 2 of argv) & " " & quoted form of (item 3 of argv) & " " & quoted form of (item 4 of argv)
-    do shell script commandText with administrator privileges
-end run
-""");
-        // Paths are literal shell arguments. The AppleScript lives in its own
-        // file, so quotes/spaces/apostrophes never cross two quoting layers.
-        var lines = new[]
-        {
-            "#!/bin/sh", "set -eu",
-            "current=" + ShellQuote(currentApp), "staged=" + ShellQuote(newApp),
-            "worker=" + ShellQuote(worker), "apple=" + ShellQuote(appleScript),
-            "nonce=" + ShellQuote(Guid.NewGuid().ToString("N")),
-            "count=0", "while /bin/kill -0 " + pid + " 2>/dev/null; do",
-            "  count=$((count + 1))", "  [ \"$count\" -lt 240 ] || exit 1", "  /bin/sleep 0.25", "done",
-            "if [ -w \"$(/usr/bin/dirname \"$current\")\" ] && [ -w \"$current\" ]; then",
-            "  /bin/sh \"$worker\" \"$current\" \"$staged\" \"$nonce\"",
-            "else", "  /usr/bin/osascript \"$apple\" \"$worker\" \"$current\" \"$staged\" \"$nonce\"", "fi",
-            // This outer helper is not elevated. Never open the app from the
-            // privileged replacement worker or inherit its administrator token.
-            "/usr/bin/open \"$current\"" + (minimized ? " --args --minimized" : ""),
-            "/bin/rm -rf -- " + ShellQuote(helperRoot), ""
-        };
-        File.WriteAllText(helper, string.Join("\n", lines));
-        foreach (var file in new[] { helper, worker })
-            File.SetUnixFileMode(file, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
-        return helper;
-    }
-
-    private static string ShellQuote(string value) => "'" + value.Replace("'", "'\\''", StringComparison.Ordinal) + "'";
+        => MacUpdateHandoff.Create(currentApp, newApp, pid, minimized).Helper;
 }

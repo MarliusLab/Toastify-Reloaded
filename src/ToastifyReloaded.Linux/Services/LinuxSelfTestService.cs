@@ -26,8 +26,12 @@ public static class LinuxSelfTestService
 
         try
         {
+            var assemblyVersion = typeof(LinuxSelfTestService).Assembly.GetName().Version
+                ?? throw new InvalidOperationException("Missing Linux assembly version.");
+            var currentNumber = $"{assemblyVersion.Major}.{assemblyVersion.Minor}.{assemblyVersion.Build}";
+            var expectedTag = $"v{currentNumber}-linux";
             Console.WriteLine(
-                "Toastify Reloaded Linux 1.4.2 self-test");
+                $"Toastify Reloaded Linux {currentNumber} self-test");
 
             Console.WriteLine(
                 $"Runtime: {Environment.Version}");
@@ -36,8 +40,8 @@ public static class LinuxSelfTestService
                 $"OS: {Environment.OSVersion}");
 
             Check(
-                LinuxUpdateService.CurrentTag ==
-                "v1.4.2-linux",
+                LinuxUpdateService.CurrentTag == expectedTag &&
+                LinuxUpdateService.CurrentVersion.Stage == LinuxReleaseStage.Stable,
                 "stable version constant");
 
             var preview4 =
@@ -65,19 +69,21 @@ public static class LinuxSelfTestService
                     "v1.4.1-linux");
 
             Check(
-                LinuxUpdateService.CurrentVersion == LinuxUpdateService.ParseTag("v1.4.2-linux") &&
+                LinuxUpdateService.CurrentVersion == LinuxUpdateService.ParseTag(expectedTag) &&
                 stable is not null &&
                 LinuxUpdateService.IsEligibleUpdateCandidate(stable, LinuxUpdateService.CurrentVersion),
-                "1.4.0 stable upgrades to the current 1.4.2 patch release");
+                $"1.4.0 stable upgrades to the current {currentNumber} release");
 
-            var futureStable = LinuxUpdateService.ParseTag("v1.4.3-linux");
-            var futurePreview = LinuxUpdateService.ParseTag("v1.4.3-linux-preview.1");
+            var current = LinuxUpdateService.CurrentVersion;
+            var nextTag = $"v{current.Major}.{current.Minor}.{checked(current.Patch + 1)}-linux";
+            var futureStable = LinuxUpdateService.ParseTag(nextTag);
+            var futurePreview = LinuxUpdateService.ParseTag(nextTag + "-preview.1");
             Check(
                 futureStable is not null && futurePreview is not null &&
                 !LinuxUpdateService.IsEligibleUpdateCandidate(LinuxUpdateService.CurrentVersion, LinuxUpdateService.CurrentVersion) &&
                 LinuxUpdateService.IsEligibleUpdateCandidate(LinuxUpdateService.CurrentVersion, futureStable) &&
                 !LinuxUpdateService.IsEligibleUpdateCandidate(LinuxUpdateService.CurrentVersion, futurePreview),
-                "1.4.2 rejects itself and future previews while accepting later stable patches");
+                $"{currentNumber} rejects itself and future previews while accepting later stable patches");
 
             Check(
                 preview4 is not null &&

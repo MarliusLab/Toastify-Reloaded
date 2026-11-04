@@ -12,6 +12,8 @@ The native package version is **`1.5.0-rc.3`**. [macOS main CI](https://github.c
 
 RC3 brings the Windows toast behavior and update maintenance to macOS while retaining settings and media controls. Clicking the toast, title or artist opens the fixed **Lyrics Plus** route. Enter/Space on a text link acts after key release. The configured **Show Toast** shortcut first displays a toast and, while any toast is visible, requests Lyrics Plus on the next press. Its additive default is `Ctrl+Alt+T`; existing saved assignments and deliberately empty assignments remain intact.
 
+There is no double-tap deadline: the second press may occur later, provided a toast is still visible. Once all toasts close, the next press displays a toast again.
+
 **Alt+Shift+J** retains Go to Now Playing while a toast is visible. Toastify waits for held input to be released, activates Spotify, checks its foreground process and sends that separate navigation shortcut through a bounded native request. This can require Accessibility/Automation approval. Synthetic hook events are ignored and forwarding temporarily suspends Toastify's matching action to prevent recursion. No playback or track-selection command is issued; accepted input alone does not prove Spotify navigated successfully.
 
 Lyrics Plus uses `spotify:app:lyrics-plus`, followed by a Spotify-activation fallback if the route fails. Toastify reports that fallback or a failure. It does not guess a song identifier for lyrics, install a provider, or claim that a successfully requested route guarantees available lyrics.
@@ -114,6 +116,10 @@ RC3 resolves Spotify bundle versions and Spicetify executables from macOS instal
 The pinned **Velopack 1.2.161** SDK creates native Mac bundles with `Contents/MacOS/UpdateMac` and the package manifest. Managed installations use their architecture-specific full/delta feed and native apply/restart helper. Legacy ZIP-installed bundles retain a bounded replacement-helper transition with rollback and a normal-user restart; settings remain in Application Support. Restart-minimized behavior is retained.
 
 This first native Velopack release is a full baseline. Later releases can produce deltas from a verified published full package, and clients need a usable cached baseline; unavailable or invalid deltas fall back to a full download. Progress shows transfer bytes/percentage when available and verification/application stages. Cancellation is offered before handoff; the app waits for an accepted handoff before closing. Installed-client apply/restart still needs acceptance on a real Mac.
+
+### RC4 maintenance in preparation
+
+The next RC4 candidate separates a completed legacy bundle replacement from cleanup/restart problems. Failure to remove an old backup becomes a warning; if the regular-user restart request fails, the helper records `installed-manual-restart` and leaves the new bundle installed for manual launch. Replacement/rollback failures remain failures, and a backup survives a failed rollback. `apply-result.txt` and `apply-update.log` remain in the per-update cache beside the downloaded ZIP. These files do not alter saved preferences or cause an automatic reinstall. The native Velopack path continues to report helper handoff rather than claiming the app has already restarted.
 
 ## Signing and Gatekeeper
 

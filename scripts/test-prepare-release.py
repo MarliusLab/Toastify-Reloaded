@@ -22,8 +22,8 @@ def event():
 
 class ReleaseGuardTests(unittest.TestCase):
     def test_all_prepared_versions_have_source_and_notes(self):
-        expected = {"windows": ("v1.3.12", "false"), "linux": ("v1.4.2-linux", "false"),
-                    "macos": ("v1.5.0-macos-rc.3", "true")}
+        expected = {"windows": ("v1.3.13", "false"), "linux": ("v1.4.3-linux", "false"),
+                    "macos": ("v1.5.0-macos-rc.4", "true")}
         for platform, (tag, prerelease) in expected.items():
             with self.subTest(platform=platform):
                 plan = guard.validate_plan(ROOT, platform)

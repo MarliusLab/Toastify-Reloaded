@@ -45,6 +45,7 @@ internal static class CrossMaintenanceTests
         try
         {
             await TestProcessesAsync(check);
+            await ToastVisibilityShortcutTests.RunAsync(check);
             await TestDownloadsAsync(root, check);
             await TestPortableSdkAsync(root, check);
         }

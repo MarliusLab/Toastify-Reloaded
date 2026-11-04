@@ -62,6 +62,10 @@ jobs:
         shell: pwsh
         run: .\scripts\test-windows-package-migration.ps1
 
+      - name: Test desktop restart under actual 32-bit and 64-bit Windows PowerShell
+        shell: pwsh
+        run: .\scripts\test-windows-desktop-restart.ps1
+
       - name: Verify synthetic delta chain and corrupt-delta full fallback
         shell: pwsh
         run: |

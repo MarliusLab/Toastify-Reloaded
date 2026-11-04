@@ -40,7 +40,11 @@ The project keeps the recognizable Toastify workflow and notification style whil
 
 All three releases are published from source `4dabfe3eef58a95f921e6df39fe39d38ccdaef22` after successful Windows, Linux and macOS main builds. Historical release tags and assets remain unchanged. Every future Windows change must also be reviewed, implemented and tested for Linux and macOS; see the [permanent platform policy and behavior matrix](docs/CROSS_PLATFORM_PARITY.md).
 
+**Next correction in preparation: Windows 1.3.13, Linux 1.4.3 and macOS RC4.** A real Windows Setup run applied 1.3.12 successfully but then failed compiling its restart helper because NSIS's native `System.dll` shadowed the managed framework reference. The installed app and settings are intact: open Toastify from Start. The correction isolates compiler references and reports committed installation separately from restart failure, with corresponding native recovery fixes. Publication still requires all three main builds at the same source.
+
 **Toast behavior on all three platforms:** click title, artist, artwork or background to request Lyrics Plus. Enter/Space on focused text offers the same action. Your saved **Show Toast** shortcut first shows a toast; another press while any toast is visible requests Lyrics Plus; after all close it shows a toast again. Existing assignments and settings are preserved. Lyrics Plus must already be enabled/applied; its providers may not have lyrics for every song. The Lyrics action sends no playback command or track-selection URI.
+
+The next Show Toast press can be delayed: **there is no fast double-tap deadline**. Visibility at the time of the press decides the action; the configured toast duration is preserved.
 
 **Alt+Shift+J remains the current-track action.** Windows/macOS request Spotify's Now Playing navigation; Linux resolves a fresh validated MPRIS track URI, with safe activation fallback. X11 registers it temporarily while a toast is visible; Wayland supports it locally and retains the approved global Show Toast shortcut. A saved Show Toast assignment of Alt+Shift+J keeps current-track precedence while a toast is visible. Permissions, external shortcut collisions and compositor remapping can affect availability.
 

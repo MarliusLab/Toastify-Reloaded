@@ -88,10 +88,31 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           chmod +x scripts/package-linux-tar.sh scripts/package-linux-deb.sh scripts/package-linux-velopack.sh
           ./scripts/package-linux-tar.sh
           ./scripts/package-linux-deb.sh
-          ./scripts/package-linux-velopack.sh x64 1.4.2
+          ./scripts/package-linux-velopack.sh x64 1.4.3
+          VERSION="$(sed -nE 's/.*<Version>([^<]+)<\/Version>.*/\1/p' src/ToastifyReloaded.Linux/ToastifyReloaded.Linux.csproj)"
+          TARGET="dist/ToastifyReloadedLinux-$VERSION-linux-x64-full.nupkg"
+          OLD="$(find dist/velopack/linux-x64 -maxdepth 1 -name 'ToastifyReloadedLinux-*-linux-x64-full.nupkg' ! -name "${TARGET##*/}" -print -quit)"
+          test -n "$OLD"
+          mkdir -p artifacts
+          python3 scripts/test-native-portable-delta.py \
+            --helper .tools/vpk/.store/vpk/1.2.161/vpk/1.2.161/vendor/UpdateNix_x64 \
+            --old "$OLD" --delta "dist/ToastifyReloadedLinux-$VERSION-linux-x64-delta.nupkg" --target "$TARGET" \
+            --output-directory artifacts/native-linux-x64-delta | tee artifacts/native-linux-x64-delta-result.json
+
+      - name: Upload x64 native delta diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: toastify-reloaded-linux-x64-native-delta-diagnostics
+          if-no-files-found: ignore
+          path: |
+            artifacts/native-linux-x64-delta-result.json
+            artifacts/native-linux-x64-delta/*.log
+            artifacts/native-linux-x64-delta/*console.txt
 
       - name: Verify native Velopack AppImage startup
         shell: bash
@@ -99,7 +120,7 @@ jobs:
           set -euo pipefail
           APPIMAGE_EXTRACT_AND_RUN=1 dist/ToastifyReloaded-Linux-x64.AppImage --self-test
           TOASTIFY_SMOKE_APP="$GITHUB_WORKSPACE/dist/ToastifyReloaded-Linux-x64.AppImage" TOASTIFY_SMOKE_LOG="$GITHUB_WORKSPACE/dist/linux-appimage-smoke.log" APPIMAGE_EXTRACT_AND_RUN=1 ./scripts/test-linux-ci.sh
-          test -s dist/ToastifyReloadedLinux-1.4.2-linux-x64-full.nupkg
+          test -s dist/ToastifyReloadedLinux-1.4.3-linux-x64-full.nupkg
           test -s dist/releases.linux-x64.json
           test -s dist/SHA256SUMS-linux-x64.txt
 
@@ -114,6 +135,7 @@ jobs:
 
           CONTENTS_FILE="$RUNNER_TEMP/toastify-deb-contents.txt"
           dpkg-deb --contents "$DEB" > "$CONTENTS_FILE"
+          dpkg-deb --field "$DEB" Depends | tr ',' '\n' | grep -Eq '(^|[[:space:]])libglib2\.0-bin([[:space:](]|$)'
 
           grep -Fq '/opt/toastify-reloaded/ToastifyReloaded.Linux' "$CONTENTS_FILE"
           grep -Fq '/usr/bin/toastify-reloaded' "$CONTENTS_FILE"
@@ -206,13 +228,34 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           chmod +x scripts/package-linux-arm64-tar.sh scripts/package-linux-arm64-deb.sh scripts/package-linux-velopack.sh
           ./scripts/package-linux-arm64-tar.sh
           ./scripts/package-linux-arm64-deb.sh
-          ./scripts/package-linux-velopack.sh arm64 1.4.2
+          ./scripts/package-linux-velopack.sh arm64 1.4.3
+          VERSION="$(sed -nE 's/.*<Version>([^<]+)<\/Version>.*/\1/p' src/ToastifyReloaded.Linux/ToastifyReloaded.Linux.csproj)"
+          TARGET="dist/ToastifyReloadedLinux-$VERSION-linux-arm64-full.nupkg"
+          OLD="$(find dist/velopack/linux-arm64 -maxdepth 1 -name 'ToastifyReloadedLinux-*-linux-arm64-full.nupkg' ! -name "${TARGET##*/}" -print -quit)"
+          test -n "$OLD"
+          mkdir -p artifacts
+          python3 scripts/test-native-portable-delta.py \
+            --helper .tools/vpk/.store/vpk/1.2.161/vpk/1.2.161/vendor/UpdateNix_arm64 \
+            --old "$OLD" --delta "dist/ToastifyReloadedLinux-$VERSION-linux-arm64-delta.nupkg" --target "$TARGET" \
+            --output-directory artifacts/native-linux-arm64-delta | tee artifacts/native-linux-arm64-delta-result.json
           APPIMAGE_EXTRACT_AND_RUN=1 dist/ToastifyReloaded-Linux-arm64.AppImage --self-test
           chmod +x scripts/test-linux-ci.sh
           TOASTIFY_SMOKE_APP="$GITHUB_WORKSPACE/dist/ToastifyReloaded-Linux-arm64.AppImage" TOASTIFY_SMOKE_LOG="$GITHUB_WORKSPACE/dist/linux-arm64-appimage-smoke.log" APPIMAGE_EXTRACT_AND_RUN=1 ./scripts/test-linux-ci.sh
+
+      - name: Upload ARM64 native delta diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: toastify-reloaded-linux-arm64-native-delta-diagnostics
+          if-no-files-found: ignore
+          path: |
+            artifacts/native-linux-arm64-delta-result.json
+            artifacts/native-linux-arm64-delta/*.log
+            artifacts/native-linux-arm64-delta/*console.txt
 
       - name: Validate ARM64 artifacts
         shell: bash
@@ -228,6 +271,7 @@ jobs:
           DEB_INFO="$RUNNER_TEMP/toastify-arm64-deb-info.txt"
           dpkg-deb --info "$DEB" > "$DEB_INFO"
           grep -Fq 'Architecture: arm64' "$DEB_INFO"
+          dpkg-deb --field "$DEB" Depends | tr ',' '\n' | grep -Eq '(^|[[:space:]])libglib2\.0-bin([[:space:](]|$)'
 
           TAR_CONTENTS="$RUNNER_TEMP/toastify-arm64-tar-contents.txt"
           tar -tzf dist/ToastifyReloaded-Linux-arm64.tar.gz > "$TAR_CONTENTS"

@@ -4,4 +4,5 @@ public sealed record LinuxUpdateApplyResult(
     bool Success,
     bool RestartStarted,
     string Message,
-    string? DownloadedPath);
+    string? DownloadedPath,
+    bool Installed = false);

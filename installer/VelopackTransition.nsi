@@ -196,6 +196,7 @@ Section "${APP_NAME}"
     File /oname=${PACKAGE_NAME} "${PACKAGE_PATH}"
     File "${MIGRATION_SCRIPTS}\WindowsPackageMigration.ps1"
     File "${MIGRATION_SCRIPTS}\WindowsPackageMigration.psm1"
+    File "${MIGRATION_SCRIPTS}\WindowsDesktopRestart.psm1"
     File "${MIGRATION_SCRIPTS}\WindowsDesktopUserLauncher.cs"
     DetailPrint "Installazione della versione ${APP_VERSION}; impostazioni e avvio automatico vengono conservati..."
     nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\WindowsPackageMigration.ps1" -InstallRoot "$INSTDIR" -MsiPath "$PLUGINSDIR\Transition.msi" -PackagePath "$PLUGINSDIR\${PACKAGE_NAME}" -Version "${APP_VERSION}" -Runtime "${RUNTIME}" -MsiSha256 "${MSI_SHA256}" -PackageSha256 "${PACKAGE_SHA256}" -RestartMinimized "$RestartMinimized"'

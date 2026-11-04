@@ -297,7 +297,7 @@ public partial class MainWindow : Window
         var track = await _playerctl.GetTrackAsync()
             ?? new LinuxTrackInfo(
                 "Toastify Reloaded Linux",
-                "Linux 1.4.2",
+                $"Linux {LinuxUpdateService.CurrentVersion.Major}.{LinuxUpdateService.CurrentVersion.Minor}.{LinuxUpdateService.CurrentVersion.Patch}",
                 "Classic Toastify experience",
                 string.Empty,
                 76,
@@ -494,6 +494,12 @@ public partial class MainWindow : Window
             Find<TextBlock>("UpdateStatusText").Text =
                 result.Message;
 
+            if (result.Installed)
+            {
+                _availableUpdate = null;
+                Find<Button>("InstallUpdateButton").IsEnabled = false;
+            }
+
             if (result.Success &&
                 result.RestartStarted)
             {
@@ -640,7 +646,7 @@ public partial class MainWindow : Window
                 Environment.NewLine,
                 new[]
                 {
-                    "Toastify Reloaded Linux: 1.4.2",
+                    $"Toastify Reloaded Linux: {LinuxUpdateService.CurrentVersion.Major}.{LinuxUpdateService.CurrentVersion.Minor}.{LinuxUpdateService.CurrentVersion.Patch}",
                     $"OS: {Environment.OSVersion}",
                     $"Architecture: {System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture}",
                     $"Session: {_hotkeys.SessionType}",
