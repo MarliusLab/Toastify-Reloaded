@@ -20,7 +20,7 @@ public sealed class LinuxUpdateInstallerService
         _process = process;
         _packages = packages ?? (OperatingSystem.IsLinux() ? new PortablePackageUpdateService("linux") : null);
         _http = http ?? new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
-        _http.DefaultRequestHeaders.UserAgent.ParseAdd("ToastifyReloaded/1.4.2");
+        _http.DefaultRequestHeaders.UserAgent.ParseAdd($"ToastifyReloaded/{LinuxUpdateService.CurrentVersion.Major}.{LinuxUpdateService.CurrentVersion.Minor}.{LinuxUpdateService.CurrentVersion.Patch}");
     }
 
     public Task<LinuxUpdateApplyResult> DownloadAndApplyAsync(LinuxUpdateInfo update, CancellationToken cancellationToken = default)
