@@ -63,4 +63,4 @@ Lyrics tab
 
 ## v1.1.0 - Maintenance layer
 
-`SpotifyInstallationService` identifica la versione Spotify; `CompatibilityRepairService` gestisce il recupero Spicetify; `UpdateService` consulta GitHub Releases e prepara l'aggiornamento in-place della distribuzione portable. Le impostazioni persistenti e lo stato anti-loop sono in `AppSettings`.
+`SpotifyInstallationService` identifica la versione Spotify; `CompatibilityRepairService` gestisce il recupero Spicetify. Nell'implementazione Windows attuale, `UpdateService` consulta GitHub Releases, seleziona l'installer NSIS stabile per l'architettura corretta e gestisce download, avanzamento, annullamento e passaggio all'installer elevato. L'installer attende l'uscita del processo originale, aggiorna i file e riavvia l'app; la versione 1.3.9 scarica ancora il pacchetto completo. Le impostazioni persistenti e lo stato anti-loop restano separati dai binari in `%APPDATA%\ToastifyReloaded\settings.json`. Dettagli e limiti sono in [AUTO_UPDATE_AND_COMPATIBILITY.md](AUTO_UPDATE_AND_COMPATIBILITY.md) e [WINDOWS_MAINTENANCE.md](WINDOWS_MAINTENANCE.md).

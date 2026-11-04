@@ -49,12 +49,14 @@ A failed repair is marked for that Spotify version. The periodic checker will no
 
 ## Toastify Reloaded self-update
 
-The app calls the GitHub Latest Release API and compares the current assembly version with the release tag. It expects one of these assets:
+The current Windows updater queries GitHub Releases, filters stable Windows releases and compares their normalized tags with the running assembly version. It selects the installer matching the process architecture:
 
-- `ToastifyReloaded-win-x64.zip`
-- `ToastifyReloaded-win-arm64.zip`
+- `ToastifyReloaded-Setup-win-x64.exe`
+- `ToastifyReloaded-Setup-win-arm64.exe`
 
-The asset is downloaded and extracted under `%TEMP%`. An updater PowerShell process waits for Toastify Reloaded to exit, copies the new files into the current portable installation folder and starts the new executable.
+The complete installer is downloaded to a temporary file with byte/percentage progress, cancellation and bounded waits. The app checks the executable structure and starts the installer through Windows elevation. The NSIS updater waits on the exact original Toastify process before replacing files, displays native installation progress and can restart the app with its minimized preference. Downloading/verifying and installer execution have separate progress states.
+
+Windows 1.3.9 still uses this installer-based mechanism. App-only or differential (delta) update packages are not implemented. See [Windows maintenance and upgrade behavior](WINDOWS_MAINTENANCE.md) for limits and verification scope.
 
 Settings are stored separately in `%APPDATA%\ToastifyReloaded` and survive application updates.
 
