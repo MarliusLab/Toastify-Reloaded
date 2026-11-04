@@ -29,6 +29,7 @@ public partial class MainWindow : Window
     private readonly SpotifyInstallationService _spotifyInstallation = new();
     private readonly CompatibilityRepairService _compatibility = new();
     private readonly WindowsUpdateService _updateService;
+    private readonly ToastShowHotkeyController _showToastHotkey = new();
     private readonly DispatcherTimer _pollTimer;
     private readonly DispatcherTimer _compatibilityTimer;
     private readonly DispatcherTimer _updateTimer;
@@ -379,7 +380,7 @@ public partial class MainWindow : Window
                     await _spotify.SeekRelativeAsync(TimeSpan.FromSeconds(-10));
                     break;
                 case HotkeyAction.ShowToast:
-                    await ShowCurrentToastAsync();
+                    await _showToastHotkey.ExecuteAsync(ShowCurrentToastAsync);
                     break;
             }
         }
@@ -431,7 +432,10 @@ public partial class MainWindow : Window
     private void ShowToast(TrackInfo track)
     {
         var toast = new ToastWindow(track, _settings, _globalHotkeys?.ToastNowPlaying);
-        toast.ShowTimed();
+        var lease = _showToastHotkey.Attach(() => toast.CanHandleLyricsPlusRequest, toast.RequestLyricsPlusAsync);
+        toast.Closed += (_, _) => lease.Dispose();
+        try { toast.ShowTimed(); }
+        catch { lease.Dispose(); throw; }
     }
 
     private void SaveSettingsFromUi()
@@ -1141,6 +1145,7 @@ public partial class MainWindow : Window
         _compatibilityTimer.Stop();
         _updateTimer.Stop();
         _globalHotkeys?.Dispose();
+        _showToastHotkey.Dispose();
         if (_trayIcon is not null)
         {
             _trayIcon.Visible = false;

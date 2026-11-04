@@ -30,13 +30,15 @@ public partial class ToastWindow : Window
     private readonly DateTimeOffset _timelineSnapshotAt;
     private bool _fadeOutStarted;
     private bool _secondPositionPassScheduled;
-    private readonly Func<CancellationToken, Task<SpotifyTrackOpenResult>> _openTrack;
+    private readonly Func<CancellationToken, Task<SpotifyTrackOpenResult>> _openLyricsPlus;
+    private readonly Func<CancellationToken, Task<SpotifyTrackOpenResult>> _openNowPlaying;
     private readonly Func<CancellationToken, Task<SpotifyTrackOpenResult>> _activateSpotify;
     private readonly Func<ModifierKeys> _getModifiers;
     private readonly ToastNowPlayingHotkeyCoordinator? _toastHotkeys;
     private IDisposable? _toastHotkeyLease;
     private bool _globalShortcutAvailable;
-    private SpotifyTrackOpenResult _lastOpenResult = SpotifyTrackOpenResult.NowPlayingRequested;
+    private SpotifyTrackOpenResult _lastOpenResult = SpotifyTrackOpenResult.LyricsPlusRequested;
+    private bool _lastWasLyricsPlus = true;
     private readonly CancellationTokenSource _openCancellation = new();
     private bool _openingSpotify;
     private bool _closed;
@@ -53,19 +55,22 @@ public partial class ToastWindow : Window
 
     private ToastWindow(TrackInfo track, AppSettings settings, SpotifyTrackOpenService service,
         ToastNowPlayingHotkeyCoordinator? hotkeys)
-        : this(track, settings, service.OpenNowPlayingAsync, hotkeys: hotkeys,
+        : this(track, settings, service.OpenLyricsPlusAsync, hotkeys: hotkeys,
+            openNowPlaying: service.OpenNowPlayingAsync,
             activateSpotify: token => service.OpenAsync(cancellationToken: token))
     {
     }
 
     internal ToastWindow(TrackInfo track, AppSettings settings,
-        Func<CancellationToken, Task<SpotifyTrackOpenResult>> openTrack,
+        Func<CancellationToken, Task<SpotifyTrackOpenResult>> openLyricsPlus,
         Func<ModifierKeys>? getModifiers = null,
         ToastNowPlayingHotkeyCoordinator? hotkeys = null,
+        Func<CancellationToken, Task<SpotifyTrackOpenResult>>? openNowPlaying = null,
         Func<CancellationToken, Task<SpotifyTrackOpenResult>>? activateSpotify = null)
     {
-        _openTrack = openTrack;
-        _activateSpotify = activateSpotify ?? openTrack;
+        _openLyricsPlus = openLyricsPlus;
+        _openNowPlaying = openNowPlaying ?? openLyricsPlus;
+        _activateSpotify = activateSpotify ?? _openNowPlaying;
         _getModifiers = getModifiers ?? (() => Keyboard.Modifiers);
         _toastHotkeys = hotkeys;
         _settings = settings;
@@ -87,7 +92,7 @@ public partial class ToastWindow : Window
             Title1.Text = track.Title;
             Title2.Text = track.Artist;
         }
-        SetOpenSpotifyHint(SpotifyTrackOpenResult.NowPlayingRequested);
+        SetOpenSpotifyHint(SpotifyTrackOpenResult.LyricsPlusRequested);
 
         ToastBorder.BorderThickness = new Thickness(Math.Max(0, settings.ToastBorderThickness));
         ToastBorder.CornerRadius = new CornerRadius(
@@ -162,7 +167,7 @@ public partial class ToastWindow : Window
     {
         if (IsVisible && !_closed && _toastHotkeys is not null)
         {
-            _toastHotkeyLease ??= _toastHotkeys.Attach(OpenSpotifyAsync, available =>
+            _toastHotkeyLease ??= _toastHotkeys.Attach(OpenNowPlayingAsync, available =>
             {
                 _globalShortcutAvailable = available;
                 if (!_closed) SetOpenSpotifyHint(_lastOpenResult);
@@ -645,7 +650,7 @@ public partial class ToastWindow : Window
             return;
         }
         e.Handled = true;
-        await OpenSpotifyAsync();
+        await OpenLyricsPlusAsync();
     }
 
     private async void Title_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
@@ -653,7 +658,7 @@ public partial class ToastWindow : Window
         if (e.Key is not (Key.Enter or Key.Space) || _getModifiers() != ModifierKeys.None)
             return;
         e.Handled = true;
-        if (!e.IsRepeat) await OpenSpotifyAsync();
+        if (!e.IsRepeat) await OpenLyricsPlusAsync();
     }
 
     private async void Window_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
@@ -661,10 +666,19 @@ public partial class ToastWindow : Window
         var key = e.Key == Key.System ? e.SystemKey : e.Key;
         if (key != Key.J || _getModifiers() != (ModifierKeys.Alt | ModifierKeys.Shift)) return;
         e.Handled = true;
-        if (!e.IsRepeat) await OpenSpotifyAsync();
+        if (!e.IsRepeat) await OpenNowPlayingAsync();
     }
 
-    private async Task OpenSpotifyAsync()
+    internal bool CanHandleLyricsPlusRequest => IsVisible && !_closed;
+
+    internal Task RequestLyricsPlusAsync()
+        => !CanHandleLyricsPlusRequest || _fadeOutStarted ? Task.CompletedTask : OpenLyricsPlusAsync();
+
+    private Task OpenLyricsPlusAsync() => OpenSpotifyAsync(lyricsPlus: true);
+
+    private Task OpenNowPlayingAsync() => OpenSpotifyAsync(lyricsPlus: false);
+
+    private async Task OpenSpotifyAsync(bool lyricsPlus)
     {
         if (_openingSpotify || _closed) return;
         _openingSpotify = true;
@@ -674,7 +688,11 @@ public partial class ToastWindow : Window
         {
             async Task NavigateAsync()
             {
-                var action = _toastHotkeys?.CanForwardShortcut == false ? _activateSpotify : _openTrack;
+                _lastWasLyricsPlus = lyricsPlus;
+                // Lyrics Plus uses one fixed page URI, not an injected Spotify
+                // shortcut. A foreign Alt+Shift+J owner cannot block this click.
+                var action = lyricsPlus ? _openLyricsPlus
+                    : _toastHotkeys?.CanForwardShortcut == false ? _activateSpotify : _openNowPlaying;
                 var result = await action(_openCancellation.Token);
                 if (!_closed) SetOpenSpotifyHint(result);
             }
@@ -700,19 +718,19 @@ public partial class ToastWindow : Window
         var hint = result switch
         {
             SpotifyTrackOpenResult.Failed => italian
-                ? "Impossibile completare il comando Spotify. Verifica l'app, rilascia i tasti e riprova."
-                : "Could not complete the Spotify command. Check the app, release the keys and try again.",
+                ? (_lastWasLyricsPlus ? "Impossibile aprire Lyrics Plus." : "Impossibile completare il comando In riproduzione.") + " Verifica Spotify, rilascia i tasti e riprova."
+                : (_lastWasLyricsPlus ? "Could not open Lyrics Plus." : "Could not complete the Now Playing command.") + " Check Spotify, release the keys and try again.",
             SpotifyTrackOpenResult.AppActivated => italian
-                ? "Spotify aperto; comando In riproduzione non confermato. Rilascia i tasti e riprova."
-                : "Spotify opened; Now Playing command was not confirmed. Release the keys and try again.",
+                ? (_lastWasLyricsPlus ? "Spotify aperto; Lyrics Plus non confermato. Verifica che sia abilitato nella scheda Reloaded." : "Spotify aperto; comando In riproduzione non confermato. Rilascia i tasti e riprova.")
+                : (_lastWasLyricsPlus ? "Spotify opened; Lyrics Plus was not confirmed. Check that it is enabled in the Reloaded tab." : "Spotify opened; Now Playing command was not confirmed. Release the keys and try again."),
             _ => italian
-                ? "Apri Spotify e vai a In riproduzione (Alt+Maiusc+J; Ctrl+trascina per spostare il toast)"
-                : "Open Spotify and go to Now Playing (Alt+Shift+J; Ctrl+drag to move the toast)"
+                ? "Apri il testo in Lyrics Plus con clic o Invio/Spazio; Alt+Maiusc+J va al brano In riproduzione. Ctrl+trascina per spostare il toast."
+                : "Open Lyrics Plus with a click or Enter/Space; Alt+Shift+J goes to Now Playing. Ctrl+drag to move the toast."
         };
         if (!_globalShortcutAvailable)
             hint += italian
-                ? " Scorciatoia globale occupata o disattivata: usa il clic oppure Enter/Spazio nel toast."
-                : " Global shortcut occupied or disabled: click or use Enter/Space in the toast.";
+                ? " Scorciatoia globale occupata o disattivata; clic e Invio/Spazio restano disponibili per Lyrics Plus."
+                : " Global shortcut occupied or disabled; click and Enter/Space remain available for Lyrics Plus.";
         ToastBorder.ToolTip = hint;
         System.Windows.Automation.AutomationProperties.SetName(Title1, $"{Title1.Text}. {hint}");
         System.Windows.Automation.AutomationProperties.SetName(Title2, $"{Title2.Text}. {hint}");

@@ -2,6 +2,16 @@
 
 Published releases are listed in [GitHub Releases](https://github.com/MarliusLab/Toastify-Reloaded/releases). Historical tags are preserved.
 
+## 1.3.11 - prepared, native CI and publication pending (Windows)
+
+- Changed toast title, artist, artwork and background clicks and Enter/Space activation to request Lyrics Plus for Spotify's current player item through the fixed `spotify:app:lyrics-plus` page. Alt+Shift+J while a toast is visible retains Go to Now Playing.
+- Made the configured Show Toast shortcut show a toast when none is visible and request Lyrics Plus while any toast remains visible. After expiration/hide, the next press shows a toast again. Existing configured keys are reused; no setting is rewritten or new shortcut required. Alt+Shift+J retains visible-toast Now Playing precedence even if assigned to Show Toast or another user action.
+- Kept protocol/window work off the UI thread, bounded held-input guards, shared activation serialization, close cancellation and temporary hotkey ownership. Lyrics Plus waits for held keyboard input, including a custom Show Toast combination, and mouse triggers to be released before dispatch/focus. A foreign owner of Alt+Shift+J can prevent its global registration/forwarding while click and Enter/Space still request Lyrics Plus; the Lyrics Plus action sends no synthetic keys.
+- Preserved Ctrl+drag, existing settings, playback controls and maintenance choices. Clicking does not enable/apply/repair Spicetify or restart Spotify. Lyrics Plus must already be applied; providers may not return lyrics for every song. Protocol acceptance is distinct from a visually confirmed lyrics page.
+- Retained the Now Playing service for the scoped shortcut and its historical tests. Windows 1.3.10 remains the published stable download.
+- Local validation passed 317 Windows regression checks, including real SDK/native patch fixtures, 140 shared assertions, 19 release guards, 17 feed/publication tests, 10 recovery tests and the classic WPF layout contract. A production-service probe opened the Lyrics Plus page on real Spotify; the paused state and position were unchanged. Lyrics for the current song were unavailable. Native CI/publication, installed 1.3.11 interaction and continuity while actively playing remain pending.
+- See [Windows toast behavior, requirements and history](docs/WINDOWS_TOAST.md).
+
 ## 1.3.10 - 2026-11-04 (Windows transition release)
 
 - Added pinned Velopack 1.2.161 startup before WPF/mutex initialization and an updater facade that retains the legacy installer path for installations that have not migrated.
@@ -11,7 +21,7 @@ Published releases are listed in [GitHub Releases](https://github.com/MarliusLab
 - Added a protected seed import into the normal user's package cache, stable launcher startup paths, non-elevated restart and an application-running preflight. Existing toast, Now Playing, hotkeys, Spotify/Spicetify maintenance and settings behavior are preserved.
 - Updated native build/release gates to validate package identity, architecture, feeds and hashes, exercise synthetic/native delta paths and upload a private draft before publishing only after every required asset is verified. Historical releases keep their original asset contracts and tags.
 - Validation: 248 Windows regression checks, 140 shared assertions and 34 migration checks passed, including real SDK/native delta reconstruction and corrupt-delta full fallback. Final publication checks passed 19 release guards, 17 feed/publication tests and 10 recovery checks. Both architectures and all eleven release assets passed native CI and checksum verification.
-- Automated installation tests use fake process/registry operations. Real elevated migration, rollback and subsequent installed-client update acceptance remain separate; no installer was executed on the development host.
+- Automated installation tests use fake process/registry operations. A later read-only PC audit found 1.3.10 already installed and verified all 485 package payload files, including the two root launcher/updater relocations, against the published full package. That audit and a normal-user launch do not establish an observed elevated transition, rollback or subsequent installed-client update/uninstall acceptance.
 
 ## 1.3.9 - 2026-11-03 (Windows stable patch)
 

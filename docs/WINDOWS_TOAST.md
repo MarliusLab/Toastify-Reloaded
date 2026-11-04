@@ -1,27 +1,49 @@
-# Windows toast: go to Now Playing
+# Windows toast: Lyrics Plus clicks and Now Playing shortcut
 
-Windows 1.3.9 adds Spotify's **Go to Now Playing** command after opening/restoring its window. Click the toast title, artist, artwork or background, or focus either text line and press Enter/Space. Ctrl+drag retains the existing toast movement behavior.
+**Windows 1.3.11 is prepared in source; local validation passed, native CI and publication are pending.** A real-client Lyrics Plus service probe has passed as described below. The published Windows release remains 1.3.10, whose earlier behavior is recorded in the history section.
 
-**Alt+Shift+J works while a toast is visible**, including without toast focus. One temporary registration is shared by overlapping toasts; the last close/hide releases it. The existing global-hotkeys preference is respected. If global hotkeys are disabled, the same combination works locally with a toast text line focused, provided another app has not registered it. If another app owns the combination, click or Enter/Space still activates Spotify but forwarding the occupied shortcut is skipped. The tooltip reports the fallback.
+## Prepared 1.3.11 behavior
 
-Spotify documents [Alt+Shift+J as Go to Now Playing](https://support.spotify.com/us/article/keyboard-shortcuts/). The target is the item currently playing when the action runs, which may have changed since the toast appeared. Toastify sends no play/pause, skip, seek or track-URI navigation command for this action. The song continues from its current position; the Spotify client controls the resulting view.
+Click a toast's title, artist, artwork or background to request **Lyrics Plus** in Spotify. Enter/Space on either focused text line uses the same action. **Alt+Shift+J while a toast is visible keeps Go to Now Playing**; it does not open Lyrics Plus. Ctrl+drag still moves the toast; themes, positioning, playback controls and existing settings are preserved.
 
-## Focus and shortcut handling
+The click/Enter/Space action opens the single fixed page `spotify:app:lyrics-plus`, corresponding to Spotify's internal `/lyrics-plus` route. Lyrics Plus reads Spotify's current player item and follows queue changes. No title search or track identifier from a stale toast is sent. This Lyrics Plus path does not inject Alt+Shift+J, send play/pause/skip/seek, or run a Spotify restart. The separate shortcut retains its existing guarded Now Playing forwarding path.
 
-The opener waits a bounded interval for held shortcut/activation keys and mouse buttons to be released before moving focus. This includes Alt/Shift/Ctrl/Win/J, Enter, Space and both main mouse buttons: a held Space must not auto-repeat into Spotify's play/pause control. It restores a minimized Spotify window or uses the fixed `spotify:` protocol to launch it, then checks that a live Spotify window owns the foreground. It checks held input and focus again immediately before injection and submits one balanced Alt+Shift+J sequence. A failed focus check sends no new key-down events.
+Lyrics Plus must already be enabled and applied through Spicetify. Clicking does not install, enable, apply or repair it; the existing Reloaded controls remain the place for those operations. Opening its page cannot guarantee that a provider has lyrics for every song. If the protocol request fails, Toastify tries to activate Spotify, reports the fallback and permits a retry. If Spotify accepts the URI but cannot render the custom app, Toastify cannot detect that from protocol acceptance alone.
 
-Toastify suspends only its matching shortcut while forwarding input. This includes a saved user binding with the same combination, preventing recursive capture or accidental execution of that binding. Other hotkeys remain registered. Before releasing ownership it checks that the combination is available, including when global hotkeys are disabled; a known foreign owner blocks forwarding. Availability can change after this probe, so an application registering the same combination during the handoff remains a Windows-level race. The registration is restored after the handoff if a toast remains visible; settings are not rewritten.
+The route and current-track behavior are supported by Spicetify 2.46.4's [Lyrics Plus page initialization](https://github.com/spicetify/cli/blob/v2.46.4/CustomApps/lyrics-plus/index.js#L950), [playbar navigation](https://github.com/spicetify/cli/blob/v2.46.4/CustomApps/lyrics-plus/PlaybarButton.js#L13) and [custom-app route registration](https://github.com/spicetify/cli/blob/v2.46.4/src/apply/apply.go#L434). A read-only local audit also found the applied route, script, CSS and manifest on the Windows PC.
 
-Windows can reject foreground activation or input, including when Spotify runs at a higher integrity level. The result distinguishes app activation from a requested Now Playing navigation. Partial injection triggers best-effort release of only the synthetic keys already inserted. Foreground checks and input insertion are separate Windows operations, so there is a small unavoidable focus-change race. See Microsoft's [SendInput contract](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-sendinput).
+## Configured Show Toast shortcut
 
-## Track identity
+The existing **Show Toast** assignment (default Ctrl+Alt+T) changes its action according to visibility:
 
-The Windows SMTC [media properties](https://learn.microsoft.com/en-us/uwp/api/windows.media.control.globalsystemmediatransportcontrolssessionmediaproperties) do not supply a Spotify catalog URI. This feature uses the desktop navigation shortcut and does not guess identifiers from title/artist. The older validated URI opener remains available internally and tested; the toast uses the separate Now Playing action.
+1. With no visible toast, it shows the current toast.
+2. While any toast is still visible, pressing the same configured shortcut requests Lyrics Plus.
+3. Once all toasts expire or hide, the next press shows a toast again.
 
-## Verification
+This uses the saved combination, including custom keys, without rewriting preferences or requiring a new assignment. The global-hotkeys preference still controls registration. **Exception: Alt+Shift+J is reserved for Now Playing while a toast is visible, even when saved as Show Toast or another user action.** Other Show Toast combinations follow the contextual Lyrics Plus behavior above.
 
-Automated checks use fake shell/input/registration adapters and real WPF routed events without controlling the user's Spotify client. They cover focus gating, held keys, input layout/sequence/cleanup, shortcut suspension and restoration, overlapping toast lifetime, local keyboard routing, retry/cancellation and the existing timeline/lifetime behavior.
+## Input, focus and concurrent toasts
 
-Local Windows validation passed 189 Windows regression checks, 140 shared version/track-link assertions, 14 release guards, the classic WPF layout contract and Linux/macOS structural parity. Existing maintenance regression checks remain in the same harness.
+URI dispatch, window activation and live held-input checks run off the WPF UI thread. The Lyrics Plus path waits a bounded interval for held keyboard input, including arbitrary keys in the configured Show Toast combination, and both main mouse buttons to be released before dispatch or focus. The separate Now Playing path retains its own shortcut/Enter/Space/mouse guards. This protects against held activation input repeating into Spotify after focus changes. Failure to release input stops the attempt; Toastify does not release the user's physical keys itself.
 
-Real-client acceptance remains separate: play a song, navigate elsewhere in Spotify, minimize it, then click the toast or press Alt+Shift+J while it is visible. Confirm Spotify shows the current item and playback continues without a restart or pause. Repeat with two toasts, Ctrl+drag, disabled global hotkeys, and a closed client. Successful input insertion alone does not prove that Spotify processed the command.
+Overlapping toasts share one temporary Alt+Shift+J registration and one execution gate for both actions. Repeated or concurrent activation is suppressed while a request is in progress; the latest visible toast receives the global Now Playing action. The final close/hide releases the temporary registration. Closing a toast cancels its pending work, while an already accepted external request cannot be undone.
+
+The global-hotkeys setting is respected. Alt+Shift+J is also handled locally when the toast receives it. If another application owns that chord, global registration or Now Playing forwarding can be unavailable; click and Enter/Space still request Lyrics Plus. The URI action does not depend on forwarding the occupied combination into Spotify. Any saved user assignment is preserved, with temporary toast ownership released/restored through the existing coordinator; settings are not rewritten.
+
+Windows may refuse foreground activation even after accepting a URI. The result distinguishes a Lyrics Plus protocol request, Spotify-only activation and failure. A successful request confirms handoff to the registered handler; it does not confirm the displayed view, provider response or playback continuity.
+
+## Verification recorded for the prepared 1.3.11
+
+Final local validation passed **317 Windows regression checks**, **140 shared assertions**, **19 release guards**, **17 feed/publication tests**, **10 recovery tests** and the classic WPF layout contract. The Windows harness covers Lyrics Plus URI/fallback behavior, guarded Now Playing forwarding, configured shortcut keys, visible/expired toast transitions, WPF event routes, held triggers, responsiveness, cancellation, shared gating and foreign shortcut ownership. It also retains maintenance and real SDK/native patch fixture checks; the total is not 317 new Lyrics Plus tests. These automated results remain separate from real-client acceptance.
+
+A separate probe through the production opener on real Spotify successfully requested the route. A read-only screenshot confirmed the Lyrics Plus page and its Karaoke/Synced/Unsynced modes. The current song had no available lyrics, illustrating the provider limit. Media-session state confirmed that the paused state and position were unchanged. This verifies the service route and observed page; it does not establish a real click or shortcut from an installed 1.3.11 toast, or continuity while actively playing.
+
+Native CI/publication and installed-client acceptance remain pending. After installation, confirm an actual toast click opens Lyrics Plus while scoped Alt+Shift+J goes to Now Playing during playback. Check that the configured Show Toast shortcut shows with no toast, requests Lyrics Plus while any toast is visible, and shows again after all expire/hide, respecting the Alt+Shift+J exception above. Repeat with a paused song, a track change, overlapping toasts, Ctrl+drag, disabled global hotkeys and an unavailable Lyrics Plus page. Confirm the displayed page and playback state directly. Protocol acceptance alone is not that acceptance result.
+
+## History: Windows 1.3.9 and 1.3.10
+
+Windows 1.3.9 introduced Spotify's [Go to Now Playing shortcut](https://support.spotify.com/us/article/keyboard-shortcuts/) after restoring/activating its window; 1.3.10 retained it. Toast clicks, Enter/Space and the scoped Alt+Shift+J action requested the currently playing item through one balanced native input sequence. Foreground checks, held-key guards and temporary release of matching Toastify registrations protected that forwarding path. A foreign owner could block forwarding; successful input insertion was not proof that Spotify processed it.
+
+The historical 1.3.9 validation passed **189 Windows regression checks**, **140 shared assertions** and **14 release guards**, plus native builds and installers. The 1.3.10 harness later passed **248 Windows checks** alongside package-update tests. Those totals belong to their respective versions and are not a count or acceptance result for 1.3.11. Real-client Now Playing navigation remained separate from those automated fixtures.
+
+The validated track-link API remains internally available and tested. In prepared 1.3.11, click/Enter/Space calls the separate Lyrics Plus action and scoped Alt+Shift+J retains the native Now Playing API. Windows SMTC [media properties](https://learn.microsoft.com/en-us/uwp/api/windows.media.control.globalsystemmediatransportcontrolssessionmediaproperties) do not provide a Spotify catalog track URI; the Lyrics Plus page obtains its current item inside Spotify instead.
