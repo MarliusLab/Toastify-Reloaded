@@ -28,6 +28,12 @@ internal static class Program
         }
         try
         {
+            if (Environment.GetEnvironmentVariable("TOASTIFY_TIMED_HOTKEY_ONLY") == "1")
+            {
+                await HotkeyTimedLyricsTests.RunAsync(Check);
+                Console.WriteLine($"TIMED HOTKEY REGRESSION TEST RESULT: PASS ({count})");
+                return 0;
+            }
             await DetectionTests.RunAsync(Check);
             await UpdateTests.RunAsync(Check);
             await VelopackUpdateTests.RunAsync(Check);
@@ -36,8 +42,10 @@ internal static class Program
             await WindowsPackageUiTests.RunAsync(Check);
             await SpotifyTrackOpenTests.RunAsync(Check);
             await LyricsPlusOpenTests.RunAsync(Check);
+            await HotkeyLyricsGuardTests.RunAsync(Check);
             await ToastTests.RunAsync(Check);
             await ToastShowHotkeyTests.RunAsync(Check);
+            await HotkeyTimedLyricsTests.RunAsync(Check);
             await ToastHotkeyTests.RunAsync(Check);
             await UpdateSessionPolicyTests.RunAsync(Check); // Process-only marker; run last.
             Console.WriteLine($"WINDOWS REGRESSION TEST RESULT: PASS ({count})");

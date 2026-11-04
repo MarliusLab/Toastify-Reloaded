@@ -14,6 +14,12 @@ RC4 retains the Windows toast behavior and update maintenance introduced in RC3 
 
 There is no double-tap deadline: the second press may occur later, provided a toast is still visible. Once all toasts close, the next press displays a toast again.
 
+### RC5 shortcut correction in preparation
+
+The next RC5 candidate also permits keeping Ctrl (or another shortcut modifier) held between the two presses: release the primary key, such as Up, after each press. Show Toast uses a dedicated Lyrics Plus path that still waits for every non-modifier key and mouse button to be released; it does not synthesize or release the user's modifiers. Clicks, Enter/Space and the separate Now Playing action retain their stricter input-release guards.
+
+A toast remains actionable throughout its visible entry/exit animation. An accepted delayed action interrupts that animation and holds the same toast while navigation is pending, then resumes its configured exit. Display and animation preferences are preserved. These fixes address held modifiers and a still-visible fade-out; earlier visibility-only controller tests did not exercise those full timed-window paths.
+
 **Alt+Shift+J** retains Go to Now Playing while a toast is visible. Toastify waits for held input to be released, activates Spotify, checks its foreground process and sends that separate navigation shortcut through a bounded native request. This can require Accessibility/Automation approval. Synthetic hook events are ignored and forwarding temporarily suspends Toastify's matching action to prevent recursion. No playback or track-selection command is issued; accepted input alone does not prove Spotify navigated successfully.
 
 Lyrics Plus uses `spotify:app:lyrics-plus`, followed by a Spotify-activation fallback if the route fails. Toastify reports that fallback or a failure. It does not guess a song identifier for lyrics, install a provider, or claim that a successfully requested route guarantees available lyrics.
@@ -159,6 +165,7 @@ On macOS with the .NET 8 SDK:
 
 ```bash
 dotnet run --project tests/ToastifyReloaded.TrackLink.Tests -c Release
+dotnet run --project tests/ToastifyReloaded.Avalonia.Tests -c Release
 python3 scripts/validate-macos-parity.py
 python3 scripts/test-portable-release.py
 ./scripts/test-macos-ci.sh

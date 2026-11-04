@@ -40,6 +40,8 @@ The project keeps the recognizable Toastify workflow and notification style whil
 
 All three releases are published from source `269c51f92ec4deac190a8a2b322ea92faeb591c3` after successful Windows, Linux and macOS main builds. Historical release tags and assets remain unchanged. Every future Windows change must also be reviewed, implemented and tested for Linux and macOS; see the [permanent platform policy and behavior matrix](docs/CROSS_PLATFORM_PARITY.md).
 
+**In preparation: Windows 1.3.14, Linux 1.4.4 and macOS RC5.** A real-user report identified that holding Ctrl between Ctrl+Up presses triggered the input guard's 1.5-second timeout; earlier controller-only delay tests did not cover that path. The correction gives Show Toast its own primary-key-release guard and makes visible exit animations interruptible. New tests exercise real timed windows, held modifiers and pending navigation on all three applications. Existing published versions above remain current until all release gates pass.
+
 **Toast behavior on all three platforms:** click title, artist, artwork or background to request Lyrics Plus. Enter/Space on focused text offers the same action. Your saved **Show Toast** shortcut first shows a toast; another press while any toast is visible requests Lyrics Plus; after all close it shows a toast again. Existing assignments and settings are preserved. Lyrics Plus must already be enabled/applied; its providers may not have lyrics for every song. The Lyrics action sends no playback command or track-selection URI.
 
 The next Show Toast press can be delayed: **there is no fast double-tap deadline**. Visibility at the time of the press decides the action; the configured toast duration is preserved.

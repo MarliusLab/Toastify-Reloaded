@@ -29,8 +29,12 @@ public partial class ToastWindow : Window
     private readonly bool _timelineIsPlaying;
     private readonly DateTimeOffset _timelineSnapshotAt;
     private bool _fadeOutStarted;
+    private DispatcherTimer? _enterCompletionTimer, _exitCompletionTimer;
+    private int _animationGeneration;
+    private bool _displayTimerDeferred;
     private bool _secondPositionPassScheduled;
     private readonly Func<CancellationToken, Task<SpotifyTrackOpenResult>> _openLyricsPlus;
+    private readonly Func<CancellationToken, Task<SpotifyTrackOpenResult>> _openLyricsPlusFromHotkey;
     private readonly Func<CancellationToken, Task<SpotifyTrackOpenResult>> _openNowPlaying;
     private readonly Func<CancellationToken, Task<SpotifyTrackOpenResult>> _activateSpotify;
     private readonly Func<ModifierKeys> _getModifiers;
@@ -57,7 +61,8 @@ public partial class ToastWindow : Window
         ToastNowPlayingHotkeyCoordinator? hotkeys)
         : this(track, settings, service.OpenLyricsPlusAsync, hotkeys: hotkeys,
             openNowPlaying: service.OpenNowPlayingAsync,
-            activateSpotify: token => service.OpenAsync(cancellationToken: token))
+            activateSpotify: token => service.OpenAsync(cancellationToken: token),
+            openLyricsPlusFromHotkey: service.OpenLyricsPlusFromHotkeyAsync)
     {
     }
 
@@ -66,9 +71,11 @@ public partial class ToastWindow : Window
         Func<ModifierKeys>? getModifiers = null,
         ToastNowPlayingHotkeyCoordinator? hotkeys = null,
         Func<CancellationToken, Task<SpotifyTrackOpenResult>>? openNowPlaying = null,
-        Func<CancellationToken, Task<SpotifyTrackOpenResult>>? activateSpotify = null)
+        Func<CancellationToken, Task<SpotifyTrackOpenResult>>? activateSpotify = null,
+        Func<CancellationToken, Task<SpotifyTrackOpenResult>>? openLyricsPlusFromHotkey = null)
     {
         _openLyricsPlus = openLyricsPlus;
+        _openLyricsPlusFromHotkey = openLyricsPlusFromHotkey ?? openLyricsPlus;
         _openNowPlaying = openNowPlaying ?? openLyricsPlus;
         _activateSpotify = activateSpotify ?? _openNowPlaying;
         _getModifiers = getModifiers ?? (() => Keyboard.Modifiers);
@@ -160,6 +167,9 @@ public partial class ToastWindow : Window
             _openCancellation.Dispose();
             _timer.Stop();
             _timelineTimer.Stop();
+            _animationGeneration++;
+            _enterCompletionTimer?.Stop();
+            _exitCompletionTimer?.Stop();
         };
     }
 
@@ -190,6 +200,7 @@ public partial class ToastWindow : Window
 
     private void PrepareEnterState()
     {
+        _animationGeneration++;
         var style = NormalizeAnimationStyle(_settings.ToastAnimationStyle);
         var fade = style is "Fade" or "FadeSlide";
         var slide = style is "Slide" or "FadeSlide";
@@ -257,8 +268,9 @@ public partial class ToastWindow : Window
             }
         }
 
-        ScheduleAfter(durationMs, () =>
+        _enterCompletionTimer = ScheduleAfter(durationMs, () =>
         {
+            _enterCompletionTimer = null;
             BeginAnimation(OpacityProperty, null);
             ToastTranslate.BeginAnimation(TranslateTransform.XProperty, null);
             ToastTranslate.BeginAnimation(TranslateTransform.YProperty, null);
@@ -271,14 +283,18 @@ public partial class ToastWindow : Window
 
     private void StartDisplayTimer()
     {
+        if (_closed) return;
+        if (_openingSpotify) { _displayTimerDeferred = true; return; }
+        _displayTimerDeferred = false;
         _timer.Interval = TimeSpan.FromMilliseconds(Math.Clamp(_settings.ToastDurationMs, 500, 30000));
         _timer.Start();
     }
 
     private void StartExitAnimation()
     {
-        if (_fadeOutStarted)
+        if (_closed || _fadeOutStarted)
             return;
+        if (_openingSpotify) { _displayTimerDeferred = true; return; }
 
         _fadeOutStarted = true;
         _timelineTimer.Stop();
@@ -331,7 +347,7 @@ public partial class ToastWindow : Window
             }
         }
 
-        ScheduleAfter(durationMs, Close);
+        _exitCompletionTimer = ScheduleAfter(durationMs, Close);
     }
 
     private (double X, double Y) GetEnterOffset()
@@ -376,16 +392,18 @@ public partial class ToastWindow : Window
         _ => "Up"
     };
 
-    private void ScheduleAfter(int milliseconds, Action action)
+    private DispatcherTimer ScheduleAfter(int milliseconds, Action action)
     {
+        var generation = _animationGeneration;
         var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(Math.Max(1, milliseconds)) };
         timer.Tick += (_, _) =>
         {
             timer.Stop();
-            if (IsLoaded)
+            if (IsLoaded && !_closed && generation == _animationGeneration)
                 action();
         };
         timer.Start();
+        return timer;
     }
 
     private void UpdateTimelineDisplay()
@@ -672,18 +690,39 @@ public partial class ToastWindow : Window
     internal bool CanHandleLyricsPlusRequest => IsVisible && !_closed;
 
     internal Task RequestLyricsPlusAsync()
-        => !CanHandleLyricsPlusRequest || _fadeOutStarted ? Task.CompletedTask : OpenLyricsPlusAsync();
+        => !CanHandleLyricsPlusRequest ? Task.CompletedTask : OpenLyricsPlusAsync();
+
+    internal Task RequestLyricsPlusFromHotkeyAsync()
+        => !CanHandleLyricsPlusRequest ? Task.CompletedTask : OpenSpotifyAsync(lyricsPlus: true, fromHotkey: true);
 
     private Task OpenLyricsPlusAsync() => OpenSpotifyAsync(lyricsPlus: true);
 
     private Task OpenNowPlayingAsync() => OpenSpotifyAsync(lyricsPlus: false);
 
-    private async Task OpenSpotifyAsync(bool lyricsPlus)
+    private async Task OpenSpotifyAsync(bool lyricsPlus, bool fromHotkey = false)
     {
         if (_openingSpotify || _closed) return;
         _openingSpotify = true;
-        var resumeTimer = _timer.IsEnabled;
+        var resumeTimer = _timer.IsEnabled || _enterCompletionTimer is not null || _displayTimerDeferred;
+        var resumeExit = _fadeOutStarted;
+        _displayTimerDeferred = false;
         _timer.Stop();
+        if (_enterCompletionTimer is not null || resumeExit)
+        {
+            // A still-visible toast remains actionable during either animation.
+            // Invalidate its old completion before yielding to URI/guard work.
+            _animationGeneration++;
+            _enterCompletionTimer?.Stop();
+            _exitCompletionTimer?.Stop();
+            _enterCompletionTimer = _exitCompletionTimer = null;
+            BeginAnimation(OpacityProperty, null);
+            ToastTranslate.BeginAnimation(TranslateTransform.XProperty, null);
+            ToastTranslate.BeginAnimation(TranslateTransform.YProperty, null);
+            Opacity = 1;
+            ToastTranslate.X = ToastTranslate.Y = 0;
+            _fadeOutStarted = false;
+            if (_settings.ShowSongProgressBar || _settings.ShowSongDuration) _timelineTimer.Start();
+        }
         try
         {
             async Task NavigateAsync()
@@ -691,7 +730,7 @@ public partial class ToastWindow : Window
                 _lastWasLyricsPlus = lyricsPlus;
                 // Lyrics Plus uses one fixed page URI, not an injected Spotify
                 // shortcut. A foreign Alt+Shift+J owner cannot block this click.
-                var action = lyricsPlus ? _openLyricsPlus
+                var action = lyricsPlus ? (fromHotkey ? _openLyricsPlusFromHotkey : _openLyricsPlus)
                     : _toastHotkeys?.CanForwardShortcut == false ? _activateSpotify : _openNowPlaying;
                 var result = await action(_openCancellation.Token);
                 if (!_closed) SetOpenSpotifyHint(result);
@@ -707,7 +746,11 @@ public partial class ToastWindow : Window
         finally
         {
             _openingSpotify = false;
-            if (!_closed && resumeTimer && !_fadeOutStarted) _timer.Start();
+            if (!_closed)
+            {
+                if (resumeExit) StartExitAnimation();
+                else if (resumeTimer || _displayTimerDeferred) StartDisplayTimer();
+            }
         }
     }
 

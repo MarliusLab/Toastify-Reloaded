@@ -206,7 +206,7 @@ public partial class MainWindow : Window
                 _artworkService,
                 new SpotifyTrackOpenService(_processService, _playerctl), _toastNavigation);
 
-            var lease = _showToastHotkey.Attach(() => toast.CanHandleLyricsPlusRequest, toast.RequestLyricsPlusAsync);
+            var lease = _showToastHotkey.Attach(() => toast.CanHandleLyricsPlusRequest, toast.RequestLyricsPlusFromHotkeyAsync);
             var trackLease = _currentTrackHotkey.Attach(() => toast.CanHandleLyricsPlusRequest, toast.RequestCurrentTrackAsync);
             _toastWindows.Add(toast);
             toast.PropertyChanged += (_, change) =>

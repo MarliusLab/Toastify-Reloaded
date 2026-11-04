@@ -119,7 +119,7 @@ public static class UiTests
                       !((ProgressBar)test.FindName("UpdateProgressBar")).IsIndeterminate && !test.CanCancelUpdate,
                     "maintenance buttons recover and spinner stops after " + scenario);
                 check(result.Contains(scenario == "uac" ? "richiesta di Windows" : scenario == "timeout" ? "tempo massimo" : "annullato"),
-                    "UI explains the actual completed error/cancellation stage: " + scenario);
+                    $"UI explains the actual completed error/cancellation stage: {scenario}; launcher reached={launched}; actual status=[{result}]");
                 check(launched == (scenario == "uac") && (!Directory.Exists(directory) || !Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories).Any()),
                     "failed UI update removes temporary installers and never launches after download cancellation: " + scenario);
             }

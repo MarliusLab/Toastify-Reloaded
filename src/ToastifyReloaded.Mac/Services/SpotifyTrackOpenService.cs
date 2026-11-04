@@ -12,6 +12,7 @@ public sealed class SpotifyTrackOpenService
     private readonly Func<string, IEnumerable<string>, CancellationToken,
         Task<(int ExitCode, string StdOut, string StdErr)>> _run;
     private readonly Func<CancellationToken, Task<bool>> _waitForInputRelease;
+    private readonly Func<CancellationToken, Task<bool>> _waitForHotkeyInputRelease;
 
     public SpotifyTrackOpenService(ProcessService process)
         : this(process.RunAsync)
@@ -20,24 +21,33 @@ public sealed class SpotifyTrackOpenService
 
     internal SpotifyTrackOpenService(Func<string, IEnumerable<string>, CancellationToken,
         Task<(int ExitCode, string StdOut, string StdErr)>> run,
-        Func<CancellationToken, Task<bool>>? waitForInputRelease = null)
+        Func<CancellationToken, Task<bool>>? waitForInputRelease = null,
+        Func<CancellationToken, Task<bool>>? waitForHotkeyInputRelease = null)
     {
         _run = run;
         _waitForInputRelease = waitForInputRelease ?? WaitForInputReleaseAsync;
+        _waitForHotkeyInputRelease = waitForHotkeyInputRelease ?? WaitForHotkeyInputReleaseAsync;
     }
 
-    public async Task<SpotifyTrackOpenResult> OpenLyricsPlusAsync(CancellationToken cancellationToken = default)
+    public Task<SpotifyTrackOpenResult> OpenLyricsPlusAsync(CancellationToken cancellationToken = default)
+        => OpenLyricsPlusCoreAsync(_waitForInputRelease, cancellationToken);
+
+    public Task<SpotifyTrackOpenResult> OpenLyricsPlusFromHotkeyAsync(CancellationToken cancellationToken = default)
+        => OpenLyricsPlusCoreAsync(_waitForHotkeyInputRelease, cancellationToken);
+
+    private async Task<SpotifyTrackOpenResult> OpenLyricsPlusCoreAsync(
+        Func<CancellationToken, Task<bool>> waitForRelease, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(8));
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
         try
         {
-            if (!await _waitForInputRelease(linked.Token).WaitAsync(linked.Token))
+            if (!await waitForRelease(linked.Token).WaitAsync(linked.Token))
                 return new(false, false, "LyricsPlusOpenFailed");
             if (await TryOpenAsync(linked.Token, "-a", "Spotify", LyricsPlusUri))
                 return new(true, false, "LyricsPlusRequested");
-            if (!await _waitForInputRelease(linked.Token).WaitAsync(linked.Token))
+            if (!await waitForRelease(linked.Token).WaitAsync(linked.Token))
                 return new(false, false, "LyricsPlusOpenFailed");
             return await TryOpenAsync(linked.Token, "-a", "Spotify")
                 ? new(true, false, "LyricsPlusActivatedFallback")
@@ -121,19 +131,33 @@ public sealed class SpotifyTrackOpenService
     }
 
     private static Task<bool> WaitForInputReleaseAsync(CancellationToken cancellationToken)
+        => WaitForInputReleaseAsync(cancellationToken, allowHeldModifiers: false);
+
+    private static Task<bool> WaitForHotkeyInputReleaseAsync(CancellationToken cancellationToken)
+        => WaitForInputReleaseAsync(cancellationToken, allowHeldModifiers: true);
+
+    private static Task<bool> WaitForInputReleaseAsync(CancellationToken cancellationToken, bool allowHeldModifiers)
         => Task.Run(async () =>
         {
             if (!OperatingSystem.IsMacOS()) return true;
             for (var attempt = 0; attempt < 60; attempt++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var held = Enumerable.Range(0, 128).Any(key => CGEventSourceKeyState(0, (ushort)key)) ||
-                    Enumerable.Range(0, 5).Any(button => CGEventSourceButtonState(0, (uint)button));
+                var held = HasBlockingInput(key => CGEventSourceKeyState(0, key),
+                    button => CGEventSourceButtonState(0, button), allowHeldModifiers);
                 if (!held) return true;
                 await Task.Delay(25, cancellationToken).ConfigureAwait(false);
             }
             return false;
         }, cancellationToken);
+
+    internal static bool HasBlockingInput(Func<ushort, bool> keyDown, Func<uint, bool> mouseDown, bool allowHeldModifiers)
+    {
+        // macOS virtual-key codes 0x36..0x3f are Command, Shift, Caps Lock,
+        // Option, Control (including right variants) and Fn. Never release or synthesize them.
+        return Enumerable.Range(0, 128).Any(key => !(allowHeldModifiers && key is >= 0x36 and <= 0x3f) && keyDown((ushort)key)) ||
+            Enumerable.Range(0, 5).Any(button => mouseDown((uint)button));
+    }
 
     [DllImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
     [return: MarshalAs(UnmanagedType.I1)]

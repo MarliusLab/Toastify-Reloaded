@@ -162,7 +162,7 @@ internal static class ToastShowHotkeyTests
 
     private static void Attach(ToastShowHotkeyController controller, ToastWindow toast)
     {
-        var lease = controller.Attach(() => toast.CanHandleLyricsPlusRequest, toast.RequestLyricsPlusAsync);
+        var lease = controller.Attach(() => toast.CanHandleLyricsPlusRequest, toast.RequestLyricsPlusFromHotkeyAsync);
         toast.Closed += (_, _) => lease.Dispose();
     }
 
