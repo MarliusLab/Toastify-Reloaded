@@ -25,7 +25,7 @@ The release pipeline stages only explicit validated files, rechecks hashes from 
 | Check | Environment | Result and limit |
 |---|---|---|
 | Windows regression suite | Windows x64, actual WPF and pinned native delta fixtures | PASS, 324 checks; no installed-client update or elevation |
-| Shared track/maintenance suite | Windows x64, real SDK with isolated synthetic feeds/packages | PASS, 199 checks; two Linux process-handoff checks SKIP on Windows |
+| Shared track/maintenance suite | Windows x64, real SDK with isolated synthetic feeds/packages | PASS, 203 checks; two Linux process-handoff checks SKIP on Windows |
 | Linux Release build | Windows x64, .NET 8 target | PASS, 0 errors / 4 existing warnings; native desktop execution still separate |
 | Manual Setup parser / migration | Windows x64, native NSIS user-mode parser and synthetic migration operations | PASS, 7 parser cases and 37 migration checks; no MSI, registry writes or real installation |
 | Release guard / Windows feed / recovery | Windows Python with local fixtures | PASS, 27 / 17 / 10 tests; private upload and immutable tag contracts |

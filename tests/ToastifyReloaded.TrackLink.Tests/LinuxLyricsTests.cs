@@ -75,7 +75,33 @@ internal static class LinuxLyricsTests
         visible = false; pending.SetResult(); await request;
         await controller.ExecuteAsync(() => { shown++; return Task.CompletedTask; });
         check(shown == 2, "Linux hidden or closed owners release the next Show Toast request");
+        await TestWaylandShortcutPrecedenceAsync(check);
         await TestLegacyRestartAsync(check);
+    }
+
+    private static async Task TestWaylandShortcutPrecedenceAsync(Action<bool, string> check)
+    {
+        using var current = new ToastShowHotkeyController();
+        var shown = 0; var opened = 0; var visible = true;
+        var pending = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var oldLease = current.Attach(() => visible, () => { opened += 100; return Task.CompletedTask; });
+        using var latestLease = current.Attach(() => visible, async () => { opened++; await pending.Task; });
+        Task Show() { shown++; return Task.CompletedTask; }
+        Task Current() => current.ExecuteAsync(() => Task.CompletedTask);
+        var request = ToastKeyboardNavigation.RouteShowToastAsync("Alt+Shift+J", true, true, Show, Current);
+        await ToastKeyboardNavigation.RouteShowToastAsync("Shift+Alt+j", true, true, Show, Current);
+        check(opened == 1 && shown == 0 && !request.IsCompleted,
+            "Wayland configured Alt Shift J prioritizes the latest visible current-track owner and consumes busy repeats");
+        visible = false;
+        pending.SetResult(); await request;
+        await ToastKeyboardNavigation.RouteShowToastAsync("Alt+Shift+J", true, true, Show, Current);
+        check(opened == 1 && shown == 0,
+            "Wayland closing or hidden owner race consumes the scoped press without showing another toast");
+        await ToastKeyboardNavigation.RouteShowToastAsync("Alt+Shift+J", true, false, Show, Current);
+        check(shown == 1, "Wayland configured Alt Shift J still shows the first toast when none is visible");
+        await ToastKeyboardNavigation.RouteShowToastAsync("Ctrl+Alt+T", true, true, Show, Current);
+        await ToastKeyboardNavigation.RouteShowToastAsync("Alt+Shift+J", false, true, Show, Current);
+        check(shown == 3, "Wayland other Show Toast bindings and the existing X11 dispatch retain their normal route");
     }
 
     private static async Task TestLegacyRestartAsync(Action<bool, string> check)

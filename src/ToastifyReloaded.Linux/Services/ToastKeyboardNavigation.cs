@@ -29,6 +29,11 @@ internal sealed class ToastKeyboardNavigation
 
     public void Reset() { _key = null; _action = ToastKeyboardAction.None; _released = false; }
 
+    public static Task RouteShowToastAsync(string configuredShortcut, bool wayland, bool visibleToast,
+        Func<Task> showToast, Func<Task> currentTrack)
+        => wayland && visibleToast && IsCurrentTrackChord(configuredShortcut)
+            ? currentTrack() : showToast();
+
     public static bool IsCurrentTrackChord(string shortcut)
     {
         var parts = shortcut.Split('+', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);

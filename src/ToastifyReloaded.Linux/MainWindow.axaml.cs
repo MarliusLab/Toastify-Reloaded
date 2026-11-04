@@ -231,11 +231,16 @@ public partial class MainWindow : Window
         }
     }
 
-    private Task ShowToastHotkeyAsync() => _showToastHotkey.ExecuteAsync(async () =>
-    {
-        var track = await _playerctl.GetTrackAsync() ?? new LinuxTrackInfo("Spotify", "", "", "", 0, 0, false);
-        await ShowToastAsync(track, untilVisible: true);
-    });
+    private Task ShowToastHotkeyAsync() => ToastKeyboardNavigation.RouteShowToastAsync(
+        _settings.HotkeyShowToast, _hotkeys.IsWayland, _toastWindows.Any(t => t.CanHandleLyricsPlusRequest),
+        () => _showToastHotkey.ExecuteAsync(async () =>
+        {
+            var track = await _playerctl.GetTrackAsync() ?? new LinuxTrackInfo("Spotify", "", "", "", 0, 0, false);
+            await ShowToastAsync(track, untilVisible: true);
+        }),
+        // Consume this press even if the last owner closes or is busy before
+        // dispatch. The current-track controller must never create a new toast.
+        () => _currentTrackHotkey.ExecuteAsync(() => Task.CompletedTask));
 
     private Task DispatchShowToastAsync()
     {
