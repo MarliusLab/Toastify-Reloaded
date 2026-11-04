@@ -89,7 +89,18 @@ internal static class LinuxTimedToastTests
                 "Linux interrupted exit cannot close or cancel an accepted delayed action at the old deadline");
             release.TrySetResult();
             await request.WaitAsync(TimeSpan.FromSeconds(2));
-            await lifetime.WaitAsync(TimeSpan.FromSeconds(4));
+            // Headless macOS runners can schedule nominal 16ms animation
+            // frames much later under load. This bounds eventual close only;
+            // pending-action and cancellation deadlines above remain strict.
+            var closing = Stopwatch.StartNew();
+            try { await lifetime.WaitAsync(TimeSpan.FromSeconds(30)); }
+            catch (TimeoutException error)
+            {
+                throw new TimeoutException($"Linux configured exit did not settle after {closing.Elapsed}: " +
+                    $"visible={toast.IsVisible}, opacity={toast.Opacity}, eligible={toast.CanHandleLyricsPlusRequest}, " +
+                    $"navigationSettled={request.IsCompleted}, lifetimeCompleted={lifetime.IsCompleted}, " +
+                    $"actionCanceled={actionToken.IsCancellationRequested}, launches={calls}.", error);
+            }
             check(!toast.IsVisible && !toast.CanHandleLyricsPlusRequest,
                 "Linux actual toast resumes its configured exit after the accepted action settles");
             var next = Create(ToastSettings(fadeOut: 50), new Opener((_, _, _) => Task.FromResult((0, "", "")),

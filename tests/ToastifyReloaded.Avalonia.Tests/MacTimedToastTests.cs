@@ -114,9 +114,17 @@ internal static class MacTimedToastTests
             check(toast.IsVisible && !lifetime.IsCompleted && !actionToken.IsCancellationRequested && settings.FadeOutMs == 5000,
                 "macOS accepted action survives its original timed close without changing saved fade duration");
             release.TrySetResult(); await navigation.WaitAsync(TimeSpan.FromSeconds(2));
-            // Headless Windows can quantize a 16 ms frame delay to ~31 ms.
-            // The contract is eventual close after the held action, not frame timing.
-            await lifetime.WaitAsync(TimeSpan.FromMilliseconds(settings.FadeOutMs * 3 + 5000));
+            // Loaded headless runners can quantize/throttle 16 ms frame delays.
+            // Input, old-deadline survival and unchanged preferences were asserted
+            // above; this final wait checks eventual close, not frame cadence.
+            try { await lifetime.WaitAsync(TimeSpan.FromSeconds(30)); }
+            catch
+            {
+                Console.Error.WriteLine($"macOS eventual close: visible={toast.IsVisible}, opacity={toast.Opacity}, " +
+                    $"fading={toast.IsExitAnimationActive}, lifetime={lifetime.Status}, navigation={navigation.Status}, " +
+                    $"calls={calls}, display={settings.ToastDisplayMs}, fadeOut={settings.FadeOutMs}");
+                throw;
+            }
             check(!toast.IsVisible && !toast.CanHandleLyricsPlusRequest,
                 "macOS timed toast resumes its configured exit after navigation settles");
             await controller.ExecuteAsync(() => { shown++; return Task.CompletedTask; });
