@@ -69,6 +69,10 @@ jobs:
         if: steps.prepare.outputs.publish == 'true'
         run: python scripts/test-velopack-release.py
 
+      - name: Test pinned draft recovery and token-safe private asset transport
+        if: steps.prepare.outputs.publish == 'true'
+        run: python scripts/test-recover-windows-draft.py
+
       - name: Install pinned Velopack CLI
         if: steps.prepare.outputs.publish == 'true'
         run: dotnet tool install vpk --version 1.2.161 --tool-path .tools/vpk
@@ -112,6 +116,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Windows publication contract validation failed' }
 
       - name: Upload verified packages to a private draft
+        id: upload
         if: steps.prepare.outputs.publish == 'true'
         uses: softprops/action-gh-release@v2
         with:
@@ -132,7 +137,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_SOURCE_SHA: ${{ steps.prepare.outputs.release_sha }}
-        run: python scripts/publish-windows-release.py --tag $env:RELEASE_TAG --sha $env:RELEASE_SOURCE_SHA --directory dist/windows-release
+          RELEASE_ID: ${{ steps.upload.outputs.id }}
+        run: python scripts/publish-windows-release.py --tag $env:RELEASE_TAG --sha $env:RELEASE_SOURCE_SHA --release-id $env:RELEASE_ID --directory dist/windows-release
 
       - name: Upload delta validation evidence
         if: always() && steps.prepare.outputs.publish == 'true'

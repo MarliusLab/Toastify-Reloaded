@@ -9,7 +9,7 @@ import os
 from pathlib import Path
 import re
 from urllib.parse import quote, urlparse
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
 
 from velopack_release import PACK_ID, RIDS, package_name, verify_entry, windows_assets, windows_version
 
@@ -24,22 +24,16 @@ def github_api(repository: str, path: str):
         return json.load(response)
 
 
-def download_asset(repository: str, asset: dict, destination: Path):
-    url = asset["browser_download_url"]
-    parsed = urlparse(url)
-    if parsed.scheme != "https" or parsed.netloc != "github.com" or not parsed.path.startswith(f"/{repository}/releases/download/"):
-        raise ValueError("Untrusted release asset URL")
+def download_checked(request, asset: dict, destination: Path, open_request=None):
     size = asset.get("size", 0)
     digest = asset.get("digest", "")
     if size <= 0 or not re.fullmatch(r"sha256:[0-9a-fA-F]{64}", digest or ""):
         raise ValueError("Previous Velopack release asset lacks verified size/SHA-256 metadata")
     actual = hashlib.sha256()
     received = 0
-    # Never forward the API token into an asset redirect.
-    request = Request(url, headers={"User-Agent": "ToastifyReleaseBase"})
     partial = destination.with_name(destination.name + ".partial")
     try:
-        with urlopen(request, timeout=60) as response, partial.open("xb") as output:
+        with (open_request or urlopen)(request, timeout=60) as response, partial.open("xb") as output:
             while block := response.read(1024 * 1024):
                 received += len(block)
                 if received > size:
@@ -52,6 +46,46 @@ def download_asset(repository: str, asset: dict, destination: Path):
     finally:
         if partial.exists():
             partial.unlink()
+
+
+def download_asset(repository: str, asset: dict, destination: Path):
+    url = asset["browser_download_url"]
+    parsed = urlparse(url)
+    if parsed.scheme != "https" or parsed.netloc != "github.com" or not parsed.path.startswith(f"/{repository}/releases/download/"):
+        raise ValueError("Untrusted release asset URL")
+    # Public assets need no API token, including during redirects.
+    download_checked(Request(url, headers={"User-Agent": "ToastifyReleaseBase"}), asset, destination)
+
+
+class TokenSafeAssetRedirect(HTTPRedirectHandler):
+    def redirect_request(self, request, response, code, message, headers, new_url):
+        target = urlparse(new_url)
+        if target.scheme != "https" or target.netloc not in {
+                "github.com", "api.github.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com"}:
+            raise ValueError("Untrusted private release asset redirect")
+        redirected = super().redirect_request(request, response, code, message, headers, new_url)
+        if redirected is not None:
+            # The first API request is authenticated. Every redirect is a new,
+            # token-free request to the presigned content URL.
+            for name in list(redirected.headers):
+                if name.lower() in ("authorization", "cookie"):
+                    del redirected.headers[name]
+            redirected.unredirected_hdrs.clear()
+        return redirected
+
+
+def download_api_asset(repository: str, asset: dict, destination: Path):
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository):
+        raise ValueError("Invalid asset repository")
+    asset_id = asset.get("id")
+    if type(asset_id) is not int or asset_id <= 0:
+        raise ValueError("Invalid private release asset ID")
+    # Construct the only authenticated origin ourselves. Never authenticate a
+    # URL supplied by release metadata or a redirect response.
+    request = Request(f"https://api.github.com/repos/{repository}/releases/assets/{asset_id}", headers={
+        "Accept": "application/octet-stream", "Authorization": "Bearer " + os.environ["GH_TOKEN"],
+        "User-Agent": "ToastifyDraftRecovery", "X-GitHub-Api-Version": "2022-11-28"})
+    download_checked(request, asset, destination, build_opener(TokenSafeAssetRedirect()).open)
 
 
 def prepare_base(repository: str, version: str, rid: str, output: Path, api, download):

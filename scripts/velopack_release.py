@@ -73,6 +73,46 @@ def verify_entry(entry: dict, directory: Path, version: str, rid: str) -> Path:
     return path
 
 
+def validate_stage(directory: Path, version: str) -> dict:
+    """Validate already uploaded bytes without canonicalizing or rewriting them."""
+    if windows_version("v" + version) is None:
+        raise ValueError("Invalid release version")
+    names = windows_assets("v" + version) - {CHECKSUMS}
+    deltas = []
+    for rid in RIDS:
+        feed = json.loads((directory / f"releases.{rid}.json").read_text(encoding="utf-8-sig"))
+        entries = feed.get("Assets")
+        if not isinstance(entries, list) or any(entry.get("Version") != version for entry in entries):
+            raise ValueError("Uploaded feed must contain only the current release")
+        kinds = [entry.get("Type", "").lower() for entry in entries]
+        if kinds.count("full") != 1 or len(kinds) != len(set(kinds)):
+            raise ValueError("Uploaded feed requires one full and at most one delta per architecture")
+        for entry in entries:
+            path = verify_entry(entry, directory, version, rid)
+            names.add(path.name)
+            if entry["Type"].lower() == "delta":
+                deltas.append(path.name)
+        expected_lines = [f"{entry['SHA1']} {entry['FileName']} {entry['Size']}" for entry in entries]
+        if (directory / f"RELEASES-{rid}").read_text(encoding="utf-8-sig").splitlines() != expected_lines:
+            raise ValueError("Legacy channel feed differs from the JSON feed")
+    if {path.name for path in directory.iterdir() if path.is_file()} != names | {CHECKSUMS}:
+        raise ValueError("Uploaded publication file set is incomplete or unexpected")
+    checksums = {}
+    for line in (directory / CHECKSUMS).read_text(encoding="utf-8-sig").splitlines():
+        match = re.fullmatch(r"([0-9a-fA-F]{64})  (.+)", line)
+        if not match or match[2] in checksums:
+            raise ValueError("Invalid or duplicate checksum manifest entry")
+        checksums[match[2]] = match[1].lower()
+    if set(checksums) != names:
+        raise ValueError("Checksum manifest does not name the exact public assets")
+    for name in names:
+        path = directory / name
+        if not path.is_file() or path.stat().st_size <= 0 or digest(path, "sha256") != checksums[name]:
+            raise ValueError("Uploaded asset failed its checksum manifest: " + name)
+    return {"version": version, "channels": list(RIDS), "asset_count": len(names) + 1,
+            "delta_packages": deltas, "first_velopack_release": windows_version("v" + version) == FIRST_VELOPACK_VERSION}
+
+
 def finalize_stage(directory: Path, version: str) -> dict:
     """Prune copied historical feed entries, then hash only this release's assets."""
     if windows_version("v" + version) is None:

@@ -1,0 +1,45 @@
+name: Recover verified Windows 1.3.10 draft
+
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/recover-windows-draft.yml"]
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: publish-windows
+  cancel-in-progress: false
+
+jobs:
+  recover:
+    if: github.repository == 'MarliusLab/Toastify-Reloaded' && github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Test release authorization and immutable tags
+        run: python scripts/test-prepare-release.py
+
+      - name: Test feeds and exact-upload-ID publication
+        run: python scripts/test-velopack-release.py
+
+      - name: Test original provenance, private asset transport and idempotent publication
+        run: python scripts/test-recover-windows-draft.py
+
+      - name: Verify all original draft bytes and publish only the pinned release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/recover-windows-draft.py
+
+      - name: Save verified publication evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Windows-1.3.10-draft-recovery
+          path: artifacts/windows-draft-recovery.json
+          if-no-files-found: ignore

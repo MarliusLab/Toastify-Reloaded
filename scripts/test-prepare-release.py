@@ -120,7 +120,7 @@ class ReleaseGuardTests(unittest.TestCase):
     def test_existing_lightweight_tag_must_match(self):
         for target in (SHA, "2" * 40):
             def api(path):
-                return None if "/releases/" in path else {"object": {"type": "commit", "sha": target}}
+                return None if "/releases" in path else {"object": {"type": "commit", "sha": target}}
             if target == SHA:
                 self.assertTrue(guard.check_remote(REPO, "v1.4.1-linux", SHA, "workflow_run", api))
             else:
@@ -129,16 +129,39 @@ class ReleaseGuardTests(unittest.TestCase):
 
     def test_existing_annotated_tag_is_peeled(self):
         def api(path):
-            if "/releases/" in path: return None
+            if "/releases" in path: return None
             if "/git/ref/" in path: return {"object": {"type": "tag", "sha": "2" * 40}}
             return {"object": {"type": "commit", "sha": SHA}}
         self.assertTrue(guard.check_remote(REPO, "v1.4.1-linux", SHA, "workflow_run", api))
 
     def test_unverifiable_tag_is_rejected(self):
         def api(path):
-            return None if "/releases/" in path else {"object": {"type": "tree", "sha": SHA}}
+            return None if "/releases" in path else {"object": {"type": "tree", "sha": SHA}}
         with self.assertRaises(ValueError):
             guard.check_remote(REPO, "v1.4.1-linux", SHA, "workflow_run", api)
+
+    def test_untagged_draft_is_found_in_list_and_resumes_only_exact_source(self):
+        draft = {"id": 433628164, "tag_name": "v1.3.10", "draft": True,
+                 "target_commitish": SHA, "prerelease": False, "assets": []}
+        def api(path):
+            return [draft] if "/releases?" in path else None
+        self.assertTrue(guard.check_remote(REPO, "v1.3.10", SHA, "workflow_run", api))
+        with self.assertRaises(ValueError):
+            guard.check_remote(REPO, "v1.3.10", "2" * 40, "workflow_run", api)
+
+    def test_ambiguous_draft_list_is_rejected(self):
+        def api(path):
+            return [{"tag_name": "v1.3.10"}, {"tag_name": "v1.3.10"}] if "/releases?" in path else None
+        with self.assertRaises(ValueError):
+            guard.find_release(REPO, "v1.3.10", api)
+
+    def test_draft_lookup_scans_later_release_pages(self):
+        draft = {"id": 1, "tag_name": "v1.3.10"}
+        def api(path):
+            if path.endswith("&page=1"): return [{"tag_name": "other"}] * 100
+            if path.endswith("&page=2"): return [draft]
+            return None
+        self.assertEqual(guard.find_release(REPO, "v1.3.10", api), draft)
 
 
 if __name__ == "__main__":

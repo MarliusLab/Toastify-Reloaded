@@ -12,13 +12,13 @@ from urllib.error import HTTPError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
-from velopack_release import CHECKSUMS, digest, finalize_stage, windows_assets
+from velopack_release import CHECKSUMS, digest, validate_stage, windows_assets
 
 
-def verify_uploaded_draft(release, directory: Path, tag: str, source_sha: str):
+def verify_uploaded_release(release, directory: Path, tag: str, source_sha: str, draft: bool):
     if (release.get("tag_name") != tag or release.get("target_commitish") != source_sha or
-            release.get("draft") is not True or release.get("prerelease") is not False):
-        raise ValueError("Release is not the expected stable draft at the exact checked source SHA")
+            release.get("draft") is not draft or release.get("prerelease") is not False):
+        raise ValueError("Release is not the expected stable publication at the exact checked source SHA")
     expected = {path.name: path for path in directory.iterdir() if path.is_file()}
     if not windows_assets(tag).issubset(expected) or CHECKSUMS not in expected:
         raise ValueError("Local publication stage is incomplete")
@@ -33,6 +33,10 @@ def verify_uploaded_draft(release, directory: Path, tag: str, source_sha: str):
             raise ValueError("Remote asset digest differs from the validated local file: " + name)
     return [{"name": name, "size": assets[name]["size"], "digest": assets[name]["digest"]}
             for name in sorted(assets)]
+
+
+def verify_uploaded_draft(release, directory: Path, tag: str, source_sha: str):
+    return verify_uploaded_release(release, directory, tag, source_sha, True)
 
 
 def verify_tag(api, tag, source_sha, optional=False):
@@ -51,18 +55,30 @@ def verify_tag(api, tag, source_sha, optional=False):
     raise ValueError("Cannot verify release tag source")
 
 
-def publish(repository, tag, source_sha, directory, api, delay=time.sleep):
+def publish(repository, tag, source_sha, directory, api, delay=time.sleep, release_id=None):
     if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository) or not re.fullmatch(r"[0-9a-f]{40}", source_sha):
         raise ValueError("Invalid publication provenance")
     if not re.fullmatch(r"v\d+\.\d+\.\d+", tag):
         raise ValueError("Invalid Windows release tag")
-    finalize_stage(directory, tag[1:])
+    if release_id is not None and (type(release_id) is not int or release_id <= 0):
+        raise ValueError("Invalid upload release ID")
+    validate_stage(directory, tag[1:])
     verify_tag(api, tag, source_sha, optional=True)
+    release_path = "releases/" + str(release_id) if release_id is not None else "releases/tags/" + quote(tag, safe="")
     # Asset digest metadata may briefly lag an otherwise completed upload.
     for attempt in range(6):
-        release = api("releases/tags/" + quote(tag, safe=""))
+        release = api(release_path)
         if release is None:
             raise ValueError("Expected upload draft is missing")
+        if release_id is not None and release.get("id") != release_id:
+            raise ValueError("GitHub returned a different release ID")
+        if release.get("draft") is False:
+            assets = verify_uploaded_release(release, directory, tag, source_sha, False)
+            verify_tag(api, tag, source_sha)
+            if (api("releases/latest") or {}).get("tag_name") != tag:
+                raise ValueError("Existing Windows publication is not latest")
+            return {"release_url": release["html_url"], "source_sha": source_sha,
+                    "assets": assets, "already_published": True}
         try:
             assets = verify_uploaded_draft(release, directory, tag, source_sha)
             break
@@ -84,6 +100,7 @@ if __name__ == "__main__":
     parser.add_argument("--repository", default="MarliusLab/Toastify-Reloaded")
     parser.add_argument("--tag", required=True)
     parser.add_argument("--sha", required=True)
+    parser.add_argument("--release-id", type=int)
     parser.add_argument("--directory", type=Path, default=Path("dist/windows-release"))
     args = parser.parse_args()
 
@@ -101,4 +118,5 @@ if __name__ == "__main__":
                 return None
             raise RuntimeError("GitHub publication API failed: HTTP " + str(error.code)) from None
 
-    print(json.dumps(publish(args.repository, args.tag, args.sha, args.directory.resolve(), api)))
+    print(json.dumps(publish(args.repository, args.tag, args.sha, args.directory.resolve(), api,
+                             release_id=args.release_id)))

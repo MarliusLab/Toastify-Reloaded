@@ -85,6 +85,30 @@ class VelopackPublicationTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 finalize_stage(directory, "1.3.10")
 
+    def test_uploaded_stage_does_not_remove_or_mask_unexpected_files(self):
+        with temporary_directory() as temporary:
+            directory = Path(temporary)
+            stage(directory)
+            finalize_stage(directory, "1.3.10")
+            extra = directory / "TestCDirFile.txt"
+            extra.write_bytes(b"unexpected fixture")
+            before = {path.name: path.read_bytes() for path in directory.iterdir()}
+            with self.assertRaises(ValueError):
+                publisher.validate_stage(directory, "1.3.10")
+            self.assertEqual(before, {path.name: path.read_bytes() for path in directory.iterdir()})
+
+    def test_uploaded_stage_does_not_repair_an_invalid_checksum_manifest(self):
+        with temporary_directory() as temporary:
+            directory = Path(temporary)
+            stage(directory)
+            finalize_stage(directory, "1.3.10")
+            manifest = directory / CHECKSUMS
+            damaged = manifest.read_bytes().replace(b"  RELEASES-win-arm64", b"  changed-feed-name")
+            manifest.write_bytes(damaged)
+            with self.assertRaises(ValueError):
+                publisher.validate_stage(directory, "1.3.10")
+            self.assertEqual(manifest.read_bytes(), damaged)
+
     def test_optional_real_delta_is_included_in_feed_and_checksum_manifest(self):
         with temporary_directory() as temporary:
             directory = Path(temporary)
@@ -186,6 +210,61 @@ class VelopackPublicationTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 publisher.publish("MarliusLab/Toastify-Reloaded", "v1.3.10", sha, directory, api, lambda _: None)
             self.assertEqual(patches, [])
+
+    def test_untagged_draft_is_loaded_by_upload_id_when_tag_lookup_is_missing(self):
+        with temporary_directory() as temporary:
+            directory = Path(temporary)
+            stage(directory)
+            finalize_stage(directory, "1.3.10")
+            sha = "1" * 40
+            draft = self.draft(directory, sha)
+            patches = []
+            def api(path, method="GET", body=None):
+                if path.startswith("releases/tags/"):
+                    self.fail("Unpublished drafts must use the exact upload ID")
+                if method == "PATCH":
+                    self.assertEqual(path, "releases/123")
+                    patches.append(body)
+                    return dict(draft, draft=False, html_url="https://github.com/example/release")
+                if path.startswith("git/ref/"):
+                    return {"object": {"type": "commit", "sha": sha}} if patches else None
+                if path == "releases/latest": return {"tag_name": "v1.3.10"}
+                self.assertEqual(path, "releases/123")
+                return draft
+            result = publisher.publish("MarliusLab/Toastify-Reloaded", "v1.3.10", sha, directory, api,
+                                       lambda _: None, release_id=123)
+            self.assertEqual(len(patches), 1)
+            self.assertEqual(len(result["assets"]), 11)
+
+    def test_already_published_upload_id_is_verified_without_a_second_patch(self):
+        with temporary_directory() as temporary:
+            directory = Path(temporary)
+            stage(directory)
+            finalize_stage(directory, "1.3.10")
+            sha = "1" * 40
+            release = dict(self.draft(directory, sha), draft=False, html_url="https://github.com/example/release")
+            def api(path, method="GET", body=None):
+                self.assertEqual(method, "GET")
+                if path.startswith("git/ref/"): return {"object": {"type": "commit", "sha": sha}}
+                if path == "releases/latest": return {"tag_name": "v1.3.10"}
+                self.assertEqual(path, "releases/123")
+                return release
+            result = publisher.publish("MarliusLab/Toastify-Reloaded", "v1.3.10", sha, directory, api,
+                                       release_id=123)
+            self.assertTrue(result["already_published"])
+
+    def test_upload_id_cannot_adopt_a_different_release(self):
+        with temporary_directory() as temporary:
+            directory = Path(temporary)
+            stage(directory)
+            finalize_stage(directory, "1.3.10")
+            draft = self.draft(directory, "1" * 40)
+            def api(path, method="GET", body=None):
+                self.assertEqual(method, "GET")
+                return None if path.startswith("git/ref/") else dict(draft, id=456)
+            with self.assertRaises(ValueError):
+                publisher.publish("MarliusLab/Toastify-Reloaded", "v1.3.10", "1" * 40, directory, api,
+                                   release_id=123)
 
     def test_foreign_source_tag_is_never_retargeted(self):
         with temporary_directory() as temporary:

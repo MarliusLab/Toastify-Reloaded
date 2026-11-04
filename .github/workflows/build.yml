@@ -29,6 +29,9 @@ jobs:
       - name: Test versioned package feeds and immutable delta bases
         run: python scripts/test-velopack-release.py
 
+      - name: Test pinned draft recovery and token-safe private asset transport
+        run: python scripts/test-recover-windows-draft.py
+
       - name: Test release versions and Spotify track links
         run: dotnet run --project tests/ToastifyReloaded.TrackLink.Tests -c Release
 

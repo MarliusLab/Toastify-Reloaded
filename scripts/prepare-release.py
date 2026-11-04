@@ -89,11 +89,30 @@ def expected_assets(tag):
     return windows_assets(tag)
 
 
+def find_release(repository, tag, api):
+    release = api(f"repos/{repository}/releases/tags/{quote(tag, safe='')}")
+    if release is not None:
+        return release
+    # GitHub's tag endpoint omits an unpublished draft if its tag does not yet
+    # exist. The release list includes authenticated drafts, including that case.
+    matches = []
+    for page in range(1, 4):
+        releases = api(f"repos/{repository}/releases?per_page=100&page={page}") or []
+        if not isinstance(releases, list):
+            raise ValueError("Invalid GitHub release list")
+        matches.extend(item for item in releases if item.get("tag_name") == tag)
+        if len(releases) < 100:
+            break
+    if len(matches) > 1:
+        raise ValueError("Multiple releases use the planned tag; refusing ambiguous publication")
+    return matches[0] if matches else None
+
+
 def check_remote(repository, tag, checked_sha, event_name, api):
     # Existing releases are immutable: later main commits must not republish
     # or move their tags. Failed unpublished tag attempts may only resume at
     # exactly the same commit, including when an annotated tag is involved.
-    release = api(f"repos/{repository}/releases/tags/{quote(tag, safe='')}")
+    release = find_release(repository, tag, api)
     assets = {a["name"] for a in (release or {}).get("assets", []) if a.get("size", 0) > 0}
     desired_prerelease = "-rc." in tag or "-preview." in tag
     if (release is not None and not release.get("draft", False)
