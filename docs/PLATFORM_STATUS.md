@@ -1,6 +1,42 @@
 # Implementation, releases and validation status
 
-## Published three-platform update — 2026-11-04
+## Current published restart-recovery update — 2026-11-04
+
+| Platform | Published release | Verified public state |
+|---|---|---|
+| Windows x64 / ARM64 | [Stable `v1.3.13`](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.3.13) | Release ID `434093050`; 13 assets, including both architecture deltas from 1.3.12; not draft or prerelease |
+| Linux x64 / ARM64 | [Stable `v1.4.3-linux`](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.4.3-linux) | Release ID `434092268`; 15 assets, including both architecture deltas from 1.4.2; not draft or prerelease |
+| macOS Intel / Apple Silicon | [Prerelease `v1.5.0-macos-rc.4`](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.5.0-macos-rc.4) | Release ID `434092339`; 13 assets, including both architecture deltas from RC3; not draft, remains a prerelease |
+
+All three releases and their new tags resolve to `269c51f92ec4deac190a8a2b322ea92faeb591c3`. An independent comparison of all **31 previous tag refs** found every target unchanged; there are now 34 refs. The release publishers validated their exact private-draft asset sets against tested artifact sizes, SHA-256 values and native feed/package identities before publication. Independent public API reads confirmed 13/15/13 nonempty uploaded assets with SHA-256 digests, the exact source SHA and the flags above.
+
+The Windows correction addresses the observed installer error after 1.3.12 had already been applied: NSIS's native `System.dll` in the working directory was mistaken for a managed reference during `Add-Type`. The desktop-user launcher now compiles using the loaded CLR directory and explicit framework references, then restores both working directories. Installation and restart outcomes are separate: a post-install helper/import/compile/launch failure reports successful installation with manual-start instructions instead of an installation failure. The application never falls back to an elevated launch.
+
+Linux and macOS apply the same outcome distinction to their native legacy replacement/restart paths. Linux DEB dependencies include the GLib command tools needed by the shortcuts. Existing Lyrics Plus clicks, the saved Show Toast action, settings and the separate current-track shortcut remain supported. The next Show Toast press does **not** require a rapid double tap: it requests Lyrics Plus after any delay while at least one toast remains visible, within the existing configured toast lifetime.
+
+### Main CI and release evidence for the current source
+
+| Platform | Successful main build | Successful publication | Checks actually passed |
+|---|---|---|---|
+| Windows | [41853524659](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41853524659) | [41856043801](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41856043801) | 324 Windows/WPF regressions; 217 shared assertions; 94 desktop-restart assertions; 7 native NSIS parser cases; 37 synthetic migration checks; both architecture package sets |
+| Linux | [41853524394](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41853524394) | [41856043711](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41856043711) | 226 shared assertions on x64; native x64/ARM64 AppImage self-tests and 10-second Xvfb startup; native patch-only reconstruction and corrupt-delta rejection on both architectures; DEB/tar/AppImage/feed verification |
+| macOS | [41853524407](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41853524407) | [41856043940](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41856043940) | Native self-test; 225 shared assertions; native ARM64 patch-only reconstruction and corrupt-delta rejection; 10-second ARM64 app startup; both architecture bundle/signature/ZIP/DMG/feed checks |
+
+All three main builds passed the parity verifier, **27 release guard** and **18 native feed/publication** tests. Windows additionally passed **17 Windows feed/publication** and **10 recovery** tests. Shared assertion totals differ because native-only process and replacement cases execute on their corresponding host; a cross-platform build does not substitute for those cases.
+
+The 94 desktop-restart assertions comprise 50 checks in eight isolated compilation/restart cases and 44 host/provenance/entrypoint checks. Actual Windows PowerShell 5.1 x64 and x86 reproduced the original `CS0009` collision and passed the corrected real C# compilation and directory-restoration checks; PowerShell 7 also passed. Six subprocess cases invoked the real migration entrypoint with fake migration modules: a missing restart module or invalid launcher source returned **10** after simulated committed installation, while failed migration returned **1** without importing the restart helper. No MSI, real updater, desktop-user launch, registry or application settings were used by these fixtures.
+
+The first successful Linux completion triggered all three release checks, which correctly reported `waiting_for_successful_main_builds:windows,macos` and skipped download/upload/publication. Only after all three main builds succeeded at this SHA did the final runs above publish their tested artifacts. macOS initially waited for a hosted runner; that queue delay did not weaken the gate or change the source.
+
+The public delta sizes are Windows x64/ARM64 **203,361 / 203,058 bytes**, Linux x64/ARM64 **231,445 / 232,479 bytes**, and macOS x64/ARM64 **556,308 / 180,165 bytes**. Unix native patch-only probes reconstructed the actual newly built packages from the verified published previous full baselines and compared every ZIP entry's content hash. Deliberately corrupt deltas were rejected. Linux x64/ARM64 compared four package entries each; macOS ARM64 compared 14. The macOS Intel package and delta were built and inspected, not natively executed. No update or application was installed/launched by the patch probes; full fallback remains covered separately by the SDK fixtures.
+
+### Actual installed PC and remaining acceptance limits
+
+A read-only post-publication check still finds installed **Windows 1.3.12**, with source identity `4dabfe3eef58a95f921e6df39fe39d38ccdaef22`; its configuration contains the same **76 properties** and its JSON SHA-256 remains unchanged. The user-observed 1.3.12 package application had succeeded before the launcher-compilation error. **1.3.13 has not been installed on that PC by these checks**, so a successful real desktop restart after the corrected Setup is not yet claimed.
+
+Native Linux/macOS Spotify interactions, global shortcut permissions/compositor behavior and installed update/restart flows remain **SKIP / interactive acceptance pending**. Virtual-X11 startup, macOS ARM64 startup, synthetic token/launcher tests and patch-only probes establish their narrower results only. macOS remains RC4; Developer ID/notarization and downloaded-app Gatekeeper acceptance remain separate from ad-hoc CI signature verification. Earlier release and audit evidence is preserved below as history.
+
+## Previous three-platform publication — source `4dabfe3` (2026-11-04)
 
 All user-facing Windows changes must also be implemented for Linux and macOS. Different operating-system backends and permission limits must be documented explicitly; a Windows-only build is not sufficient evidence for the other platforms.
 

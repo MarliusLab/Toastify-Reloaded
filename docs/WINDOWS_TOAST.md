@@ -1,6 +1,6 @@
 # Windows toast: Lyrics Plus clicks and Now Playing shortcut
 
-**[Windows 1.3.12 is published](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.3.12).** It preserves the Lyrics Plus and contextual Show Toast behavior introduced in 1.3.11, fixes silent manual Setup startup and automatic updater-restart loops, and passed 324 Windows regression checks. Linux 1.4.2 and macOS RC3 now provide the corresponding toast behavior; see the [three-platform matrix](CROSS_PLATFORM_PARITY.md) and [native build/publication evidence](PLATFORM_STATUS.md). The earlier 1.3.11 real-client service probe remains historical evidence below.
+**[Windows 1.3.13 is published](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.3.13).** It preserves Lyrics Plus clicks and contextual Show Toast behavior. The next press can be delayed for as long as the toast remains visible; no fast double-tap deadline or duration change is introduced. It also fixes the installer restart compiler collision and distinguishes committed installation from manual-start recovery. Native CI passed 324 Windows checks, including the delayed WPF action; the common visibility controller is compiled and tested on all three platforms. Linux 1.4.3 and macOS RC4 contain the corresponding behavior and recovery updates; see [platform evidence](PLATFORM_STATUS.md). Earlier real-client service probes remain historical evidence below.
 
 ## Current behavior (introduced in Windows 1.3.11)
 

@@ -2,7 +2,7 @@
 
 Ogni modifica funzionale Windows deve essere valutata e portata anche su Linux e macOS nello stesso ciclo di lavoro: navigazione Spotify, scorciatoie, impostazioni, rilevamento versioni, manutenzione e aggiornamenti. Una differenza imposta dal sistema operativo richiede un equivalente nativo documentato e una prova appropriata. Una limitazione ancora aperta resta dichiarata; il solo successo della compilazione non la risolve.
 
-Le versioni pubblicate in questo ciclo sono Windows `1.3.12`, Linux `1.4.2-linux` e macOS `1.5.0-macos-rc.3`, tutte dal commit `4dabfe3eef58a95f921e6df39fe39d38ccdaef22` dopo tre build main riusciti. Il piano di pubblicazione è [release-plan.json](releases/release-plan.json); [stato e prove](PLATFORM_STATUS.md) riporta i workflow effettivi. I 28 tag precedenti sono rimasti invariati.
+Le versioni pubblicate in questo ciclo sono Windows `1.3.13`, Linux `1.4.3-linux` e macOS `1.5.0-macos-rc.4`, tutte dal commit `269c51f92ec4deac190a8a2b322ea92faeb591c3` dopo tre build main riusciti. Il piano di pubblicazione è [release-plan.json](releases/release-plan.json); [stato e prove](PLATFORM_STATUS.md) riporta i workflow effettivi. I 31 tag precedenti sono rimasti invariati.
 
 ## Comportamento comune
 
@@ -33,6 +33,8 @@ Su macOS Accessibilità e Automation sono permessi distinti. Build e test con se
 Tutti i progetti usano SDK/CLI Velopack `1.2.161`, canali separati per piattaforma e architettura e pacchetti con identità verificata. Linux `1.4.2` e macOS `1.5.0-rc.3` sono le prime basi pubbliche native: contengono pacchetti **full**, feed e checksum per entrambe le architetture. Non esiste una precedente base pubblica Velopack Unix da cui produrre delta reali per queste prime release.
 
 Le release successive possono generare delta dalla precedente base full immutabile. Anche con un delta pubblicato, una nuova installazione priva del full precedente nella cache può richiedere il pacchetto completo al primo aggiornamento. Il backend ricorre al full quando la ricostruzione delta fallisce; metadati, architettura e contenuti vengono verificati prima della consegna al helper nativo.
+
+Linux 1.4.3 e macOS RC4 pubblicano ora due delta reali ciascuno dalle basi 1.4.2/RC3. La CI ha ricostruito i pacchetti con gli helper ufficiali su Linux x64/ARM64 e macOS ARM64, confrontato tutti i contenuti e rifiutato delta corrotti, senza installare o avviare l'applicazione. Le prove dei delta non sostituiscono l'accettazione di un aggiornamento installato.
 
 Le AppImage Linux restano AppImage. Un'installazione DEB continua a usare il gestore di pacchetti e un'installazione tar conserva il percorso di aggiornamento portabile/manuale: non vengono convertite silenziosamente in installazioni Velopack. I download ZIP/DMG macOS restano disponibili. Impostazioni e identità di installazione esistenti non vengono azzerate per abilitare i feed nuovi.
 

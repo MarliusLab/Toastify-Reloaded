@@ -2,12 +2,15 @@
 
 Published releases are listed in [GitHub Releases](https://github.com/MarliusLab/Toastify-Reloaded/releases). Historical tags are preserved.
 
-## 1.3.13 / 1.4.3-linux / 1.5.0-macos-rc.4 - in preparation
+## 1.3.13 / 1.4.3-linux / 1.5.0-macos-rc.4 - 2026-11-04
 
 - Reproduced the actual NSIS `System.dll` collision under Windows PowerShell 5.1 x86 and x64. Compile the desktop-user launcher from the trusted CLR directory with absolute framework references, restore both working directories, and retain the non-elevated restart requirement.
 - Separate successful installation from restart-helper import, compilation or launch errors. Windows reports manual startup after a committed install; Linux legacy AppImage/DEB results retain installed success after a failed restart; macOS preserves committed replacement through backup-cleanup failures and records restart failures separately. Pre-installation failures and rollback errors remain failures.
 - Preserve the saved Show Toast shortcut's visibility-only behavior: a delayed next press requests Lyrics Plus whenever a toast is still visible, without a double-tap deadline. Add shared and real WPF regression coverage; preserve configured duration and Alt+Shift+J's separate destination.
 - Declare the GLib command tools required by Linux toast shortcuts in both DEBs. Add native Linux/Mac patch-only reconstruction and corrupt-delta probes against verified previous public baselines; no installation or application launch is part of those tests.
+- Published from `269c51f92ec4deac190a8a2b322ea92faeb591c3` after successful Windows main [41853524659](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41853524659), Linux main [41853524394](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41853524394) and macOS main [41853524407](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41853524407). Passed 324 Windows checks, 94 desktop-restart/entrypoint assertions, 217 shared checks on Windows, 226 on Linux and 225 on macOS; release suites 27/17/10/18, NSIS 7 and migration 37 also passed.
+- Linux x64/ARM64 and macOS ARM64 reconstructed genuine deltas and rejected corrupt patches without applying updates. The seven generated macOS helper scenarios and native AppleScript compilation passed. Published asset sets are Windows 13, Linux 15 and macOS 13, each including two genuine deltas; all 31 previous tag targets remain unchanged.
+- Publication workflows succeeded: [Windows 41856043801](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41856043801), [Linux 41856043711](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41856043711), [macOS 41856043940](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41856043940). Installed-client interaction and macOS stable acceptance remain separate; see [verified platform status](docs/PLATFORM_STATUS.md).
 
 ## 1.3.12 / 1.4.2-linux / 1.5.0-macos-rc.3 - 2026-11-04
 
