@@ -2,7 +2,7 @@
 
 Ogni modifica funzionale Windows deve essere valutata e portata anche su Linux e macOS nello stesso ciclo di lavoro: navigazione Spotify, scorciatoie, impostazioni, rilevamento versioni, manutenzione e aggiornamenti. Una differenza imposta dal sistema operativo richiede un equivalente nativo documentato e una prova appropriata. Una limitazione ancora aperta resta dichiarata; il solo successo della compilazione non la risolve.
 
-Le versioni preparate per questo ciclo sono Windows `1.3.12`, Linux `1.4.2-linux` e macOS `1.5.0-macos-rc.3`. Il piano di pubblicazione è [release-plan.json](releases/release-plan.json). Queste indicazioni descrivono il codice preparato: la disponibilità pubblica va verificata nelle release GitHub.
+Le versioni pubblicate in questo ciclo sono Windows `1.3.12`, Linux `1.4.2-linux` e macOS `1.5.0-macos-rc.3`, tutte dal commit `4dabfe3eef58a95f921e6df39fe39d38ccdaef22` dopo tre build main riusciti. Il piano di pubblicazione è [release-plan.json](releases/release-plan.json); [stato e prove](PLATFORM_STATUS.md) riporta i workflow effettivi. I 28 tag precedenti sono rimasti invariati.
 
 ## Comportamento comune
 

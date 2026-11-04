@@ -2,7 +2,7 @@
 
 Published releases are listed in [GitHub Releases](https://github.com/MarliusLab/Toastify-Reloaded/releases). Historical tags are preserved.
 
-## 1.3.12 / 1.4.2-linux / 1.5.0-macos-rc.3 - in preparation
+## 1.3.12 / 1.4.2-linux / 1.5.0-macos-rc.3 - 2026-11-04
 
 - Ported Lyrics Plus toast clicks, keyboard activation and the saved Show Toast shortcut's contextual behavior to Linux and macOS. First press shows the toast; another press while a toast is visible requests the fixed Lyrics Plus page. Existing settings and playback controls are retained. Lyrics Plus must already be applied in Spotify.
 - Kept Alt+Shift+J separate from Lyrics Plus. Windows/macOS retain Now Playing navigation; Linux resolves fresh validated MPRIS identity with Spotify activation fallback. Linux X11 temporarily owns the chord while a toast is visible; Wayland supports it locally while the approved portal Show Toast shortcut remains global.
@@ -11,6 +11,9 @@ Published releases are listed in [GitHub Releases](https://github.com/MarliusLab
 - Fixed both Windows compatibility installers aborting silently before their wizard when the optional restart argument was absent. Invalid arguments, another active Setup and ARM64 Setup on an incompatible PC now produce visible errors. Normal-user restart diagnostics identify failed handoff stages. Automatic installation does not loop after an updater restart; explicit retry remains available.
 - Required successful Windows, Linux and macOS main builds at the same SHA before any of the three releases can publish. Release jobs reuse those exact verified artifacts, check uploaded manifests/feeds and retain immutable historical tags. Added a permanent repository rule and CI parity checks for future Windows changes.
 - macOS remains an RC. Native Spotify interaction, desktop permissions, installed-client upgrade/rollback and distribution signing/notarization acceptance remain distinct from automated build and packaging checks.
+- Published all three versions from `4dabfe3eef58a95f921e6df39fe39d38ccdaef22` after successful Windows, Linux and macOS main builds. Windows has 13 assets including two real deltas from 1.3.11 (278,888 / 279,184 bytes); Linux has 13 first-baseline assets and macOS has 11, with no invented deltas. All 28 prior tag targets remain unchanged.
+- Passed 324 Windows checks, 203 shared assertions on Windows/macOS and 205 on Linux, 7 native NSIS parser cases, 37 synthetic migration checks, 27 release guards, 17 Windows feed tests, 10 recovery tests and 18 native-publication tests. Native Linux x64/ARM64 AppImage self-tests/startup, macOS ARM64 startup, both Mac architecture signatures and both DMGs passed. The CI exposed and resolved unauthenticated GitHub API quota exhaustion in native baseline lookups and a fixed-delay WPF test assumption; installed-client acceptance is still separate.
+- Publication workflows: [Windows 41840242086](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41840242086), [Linux 41840242116](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41840242116), [macOS 41840242222](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41840242222). See [platform status](docs/PLATFORM_STATUS.md) for build evidence and remaining acceptance work.
 
 ## 1.3.11 - 2026-11-04 (Windows stable update)
 

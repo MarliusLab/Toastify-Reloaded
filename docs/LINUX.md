@@ -1,22 +1,24 @@
 # Toastify Reloaded — Linux
 
-Published stable version: **1.4.1**
+Published stable version: **1.4.2**
 
-Stable tag: **`v1.4.1-linux`**
+Stable tag: **`v1.4.2-linux`**
 
-[Download Linux v1.4.1](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.4.1-linux).
+[Download Linux v1.4.2](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.4.2-linux).
 
 The Linux port is intentionally isolated from the stable Windows/WPF application and uses Linux-native backends where Windows APIs do not exist.
 
-## In preparation: 1.4.2
+## Published 1.4.2
 
-Source now targets **`v1.4.2-linux`**. This candidate is not yet described as published: native package, startup and publication gates must pass first. The published 1.4.1 assets and all existing tags remain unchanged.
+Published on **4 November 2026**, from source **`4dabfe3eef58a95f921e6df39fe39d38ccdaef22`**, with 13 verified assets. The release is public and stable; the earlier 1.4.1 assets and existing tags remain unchanged.
 
-Clicking the toast, title or artist requests **Lyrics Plus** through the fixed `spotify:app:lyrics-plus` route. Enter/Space on either text link performs the same action after the key is released. If that route fails, Toastify tries to activate Spotify and reports the fallback; route acceptance does not confirm that Lyrics Plus is installed or has lyrics for the current song. Navigation sends no play, pause, seek or track-selection command.
+Clicking the toast, title or artist requests **Lyrics Plus** through the fixed `spotify:app:lyrics-plus` route. Enter/Space on either text link performs the same action after the key and held modifiers are released. If that route fails, Toastify tries to activate Spotify and reports the fallback; route acceptance does not confirm that Lyrics Plus is installed or has lyrics for the current song. The Lyrics Plus path sends no play, pause, seek or track-selection command.
 
 The configurable **Show Toast** shortcut defaults to `Ctrl+Alt+T` when an older settings file has no assignment. The first press displays a toast; another press while any toast is visible requests Lyrics Plus. After all toasts close, the shortcut shows a toast again. Existing saved shortcuts and disabled assignments are preserved. Tray/test buttons continue to show a toast.
 
-**Alt+Shift+J** remains separate: it reads the current MPRIS track identifier at invocation time and requests its validated Spotify link, with safe Spotify activation fallbacks for missing/local identifiers. X11 registers this shortcut globally only while a toast is visible and releases its own temporary binding afterwards. Wayland supports Alt+Shift+J while the toast has keyboard focus; its approved global Show Toast shortcut retains the two-press Lyrics Plus behavior. Toastify does not claim a global Wayland Alt+Shift+J binding.
+**Alt+Shift+J** remains separate: it reads the current MPRIS track identifier at invocation time and requests its validated Spotify link, with safe Spotify activation fallbacks for missing/local identifiers. Spotify owns the link's effect; Toastify sends no synthetic input or explicit playback command. X11 registers this shortcut globally only while a toast is visible and restores its own saved assignments afterwards; native conflicts are reported when the backend exposes them. Wayland supports Alt+Shift+J while the toast has keyboard focus. If the saved Show Toast shortcut itself is Alt+Shift+J, its first press shows a toast and a visible-toast press takes the current-track action. Other approved global Show Toast bindings retain the two-press Lyrics Plus behavior.
+
+Toastify does not reserve an additional global Wayland Alt+Shift+J binding. The desktop portal controls global permissions and can remap a preferred binding externally; Toastify cannot reliably infer that remapped physical chord from its saved shortcut text.
 
 Downloads now report bytes, percentage when known and verification/application stages. Cancel is available before the updater handoff; the application waits for an accepted handoff before exiting. Spotify/Spicetify probes run independently of repair and downloads, resolve native installation locations, and use bounded process/network operations. All themes, media controls, settings and import/export behavior remain available.
 
@@ -37,7 +39,7 @@ Downloads now report bytes, percentage when known and verification/application s
 - Spotify volume and mute controls
 - Automatic MPRIS player detection/reconnection
 - Track-change toast
-- Clickable, keyboard-accessible Lyrics Plus navigation in the 1.4.2 candidate, with a separate current-track shortcut
+- Clickable, keyboard-accessible Lyrics Plus navigation, with a separate current-track shortcut
 - Adaptive and fixed toast geometry
 - Album artwork
 - Toastify icon fallback
@@ -80,6 +82,8 @@ libfontconfig1
 ```
 
 For AppImage/tar users, install the required host tools and desktop libraries using the package manager for the distribution.
+
+The X11 global Show Toast and temporary current-track shortcuts also require the `gdbus` command from the distribution's GLib command-line tools. Check `command -v gdbus` before using these bindings; the published DEB dependency list above does not explicitly include that tool.
 
 ### Ubuntu / Debian
 
@@ -157,9 +161,11 @@ The normal settings file is:
 
 The application can import/export JSON settings through Avalonia's storage provider.
 
-## Update behavior in the 1.4.2 candidate
+## Update behavior in 1.4.2
 
 Velopack **1.2.161** supplies native AppImage update packages for x64 and ARM64. A Velopack-managed AppImage uses its architecture-specific feed, verifies the downloaded package, and hands application/restart to the native helper. Existing unmanaged AppImage and DEB installations retain the package-aware transition path; tar installations retain the manual archive path. Normal settings stay outside the application package and are preserved.
+
+Legacy AppImage/DEB restart helpers wait for the old process to exit before launching the replacement, preserving `--minimized`. A restart from the updater suppresses another automatic installation attempt for that process, while explicit Install remains available and saved preferences stay unchanged.
 
 This first Linux Velopack release establishes a **full-package baseline**. It does not manufacture a delta from a legacy AppImage, DEB or tar archive. A later release can generate a delta from a verified published full baseline; a client also needs a usable cached baseline to apply it. Missing/corrupt/inapplicable deltas use the full-package fallback. No installed-client update/restart has been verified merely by building the packages.
 
@@ -177,7 +183,7 @@ Channel policy:
 - **`.deb`:** download, verify SHA-256 when available, use the privileged package path when available; otherwise leave the downloaded package for manual installation;
 - **tar.gz:** download the matching portable archive without overwriting an unknown custom installation.
 
-## Planned 1.4.2 release packages
+## Published 1.4.2 release packages
 
 ### x64
 
@@ -288,7 +294,19 @@ The tag workflow for:
 v1.4.2-linux
 ```
 
-selects the tested source build, verifies its artifacts, generates the complete `SHA256SUMS.txt` and publishes the same private draft only after asset and immutable-source checks pass. Configured gates are not recorded as passed until the native run completes.
+selects the tested source build, verifies its artifacts, generates the complete `SHA256SUMS.txt` and publishes the same private draft only after asset and immutable-source checks pass.
+
+### Verified release evidence
+
+[Linux main build 41839458627](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41839458627) passed on source `4dabfe3eef58a95f921e6df39fe39d38ccdaef22`:
+
+- **205 shared regression checks**, including the real Linux synthetic-process restart timing check and configured Wayland Alt+Shift+J precedence;
+- native x64 and ARM64 builds, ELF architecture checks, AppImage self-tests and 10-second graphical startup under virtual X11;
+- DEB/tar/AppImage packaging, native full-package feeds and artifact checksum validation.
+
+[Linux Release 41840242116](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41840242116) verified and published all **13 nonempty assets**, including `SHA256SUMS.txt`. The stable tag and release source both resolve to the tested commit above. This first native feed contains full packages and no fabricated delta.
+
+These checks establish automated startup, package and regression evidence. They do not replace live Spotify/Lyrics Plus acceptance on an X11 or Wayland desktop, or an installed-client update/restart test.
 
 ## Platform-specific notes
 

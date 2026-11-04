@@ -1,26 +1,26 @@
 # Implementation, releases and validation status
 
-## Three-platform update in preparation — 2026-11-04
+## Published three-platform update — 2026-11-04
 
 All user-facing Windows changes must also be implemented for Linux and macOS. Different operating-system backends and permission limits must be documented explicitly; a Windows-only build is not sufficient evidence for the other platforms.
 
-| Platform | Candidate in source | Publication state |
+| Platform | Published version | Publication state |
 |---|---|---|
-| Windows x64 / ARM64 | `v1.3.12` | In preparation; existing `v1.3.11` remains the published baseline |
-| Linux x64 / ARM64 | `v1.4.2-linux` | In preparation; existing `v1.4.1-linux` remains the published baseline |
-| macOS Intel / Apple Silicon | `v1.5.0-macos-rc.3` | In preparation; existing RC2 remains published; stable promotion is not implied |
+| Windows x64 / ARM64 | [Stable `v1.3.12`](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.3.12) | Published; 13 verified assets, including 2 deltas from 1.3.11 |
+| Linux x64 / ARM64 | [Stable `v1.4.2-linux`](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.4.2-linux) | Published; 13 verified assets, first full native Velopack baseline |
+| macOS Intel / Apple Silicon | [Prerelease `v1.5.0-macos-rc.3`](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.5.0-macos-rc.3) | Published; 11 verified assets, first full native Velopack baseline; stable promotion is not implied |
 
-Linux/macOS candidates now request Lyrics Plus from the toast, title/artist and Enter/Space. The saved Show Toast shortcut displays a toast on its first press, requests Lyrics Plus while any toast is visible, and returns to showing a toast after all close. Its additive default is Ctrl+Alt+T; saved and empty assignments are retained. Shared navigation/lifetime guards handle overlapping toasts, cancellation and repeated input. Lyrics Plus uses a fixed route and safe Spotify-activation fallback without selecting or restarting a track.
+Linux/macOS now request Lyrics Plus from the toast, title/artist and Enter/Space. The saved Show Toast shortcut displays a toast on its first press, requests Lyrics Plus while any toast is visible, and returns to showing a toast after all close. Its additive default is Ctrl+Alt+T; saved and empty assignments are retained. Shared navigation/lifetime guards handle overlapping toasts, cancellation and repeated input. Lyrics Plus uses a fixed route and safe Spotify-activation fallback without selecting or restarting a track.
 
 Alt+Shift+J remains a separate current-track action. Linux reads fresh MPRIS identity, temporarily owns the X11 global binding while a toast is visible and offers the action locally on Wayland; the approved global Wayland Show Toast shortcut still supports both presses. macOS waits for input release, activates Spotify and forwards its native Now Playing shortcut only after checking foreground/input state, with hook recursion guards. Permission/provider availability and actual Spotify behavior still need interactive acceptance.
 
-Both native candidates add independent Spotify/Spicetify version probes, process/network deadlines, stage/byte/percentage update progress, cancellation before handoff, and guarded exit/restart. Platform settings, media controls, themes, tray, import/export and startup features are retained.
+Both native ports add independent Spotify/Spicetify version probes, process/network deadlines, stage/byte/percentage update progress, cancellation before handoff, and guarded exit/restart. Platform settings, media controls, themes, tray, import/export and startup features are retained.
 
 Velopack 1.2.161 now supplies architecture-specific native AppImage/Mac update packages and feeds. Linux 1.4.2 and macOS RC3 are the first full baselines: **13 Linux assets** and **11 macOS assets**, without invented legacy-to-Velopack deltas. A subsequent release can generate deltas from verified published full packages, and clients need a usable cached base; full download remains the fallback. Compatibility installation paths are retained for legacy packages. Existing tags/assets are not overwritten.
 
-The release pipeline stages only explicit validated files, rechecks hashes from tested artifacts, verifies the exact uploaded asset set and immutable full source SHA, then publishes the same upload's draft ID. This describes implemented guards, not a completed publication.
+All three versions were published from the same tested source commit, `4dabfe3eef58a95f921e6df39fe39d38ccdaef22`. The release pipelines staged only explicit validated files, rechecked hashes from tested artifacts, verified the exact uploaded asset sets and immutable full source SHA, then published the same uploads' draft IDs. Independent public API verification confirmed 13/13/11 nonempty uploaded assets, recorded SHA-256 digests and the expected stable/stable/prerelease flags. Existing release tags and assets remain unchanged.
 
-### Candidate checks actually executed on the development host
+### Checks actually executed on the development host before publication
 
 | Check | Environment | Result and limit |
 |---|---|---|
@@ -36,7 +36,23 @@ The release pipeline stages only explicit validated files, rechecks hashes from 
 
 The self-test uses an ignored workspace temporary configuration; no installed Spotify interaction or application update was performed by these checks. The first default system-temp attempt was denied by the managed host's file-move permissions; the isolated workspace rerun passed.
 
-The updated Linux workflow requires **native x64 and ARM64** AppImage self-tests and virtual-X11 startup, replacing the older ARM64 cross-build-only gate. The macOS workflow requires the signed SDK updater/manifest inside each bundle, native signing preflight, native-architecture startup and ZIP/DMG/feed verification. These new native gates and release publication remain pending until linked successful runs are recorded. A virtual desktop smoke test does not establish real Spotify, native Wayland, permissions or updater acceptance.
+### Native main builds and coordinated publication that passed
+
+| Platform | Successful native main build | Successful publication | Actual validation |
+|---|---|---|---|
+| Windows | [41839459585](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41839459585) | [41840242086](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41840242086) | 324 Windows checks; 203 shared checks; real SDK/native patch-only fallback; 7 NSIS parser cases; 37 synthetic migration checks; x64/ARM64 full/delta feeds and compatibility installers |
+| Linux | [41839458627](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41839458627) | [41840242116](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41840242116) | 205 shared checks, including native Linux synthetic restart timing; native x64 and ARM64 AppImage self-tests and 10-second Xvfb startup; ELF architecture, DEB/tar/AppImage, full feeds and checksums |
+| macOS | [41839459037](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41839459037) | [41840242222](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41840242222) | Native self-test; 203 shared checks; x64/ARM64 bundle and updater signing/identity checks; 10-second native ARM64 startup; ZIP/DMG/full feeds and checksums |
+
+All three main builds passed the permanent parity verifier, 27 publication guard tests and 18 native feed/publication tests; Windows additionally passed 17 Windows feed/publication and 10 recovery tests. The two Linux-specific process-handoff checks were explicitly skipped on Windows/macOS, accounting for 203 versus 205 shared checks.
+
+The first Linux/macOS completions triggered publication checks that correctly reported `waiting_for_successful_main_builds:windows` and `publish=false`; download, upload and publication steps were skipped. Only after the Windows main build also succeeded did all three final guards report `all_three_main_builds_passed`, the exact run IDs above and the same source SHA. Releases reused those tested build artifacts without rebuilding binaries.
+
+Windows 1.3.12 contains two real deltas from the verified public 1.3.11 baseline: x64 279,184 bytes and ARM64 278,888 bytes. Linux/macOS contain no delta packages in their first native baselines. The published private-draft verification passed for all 37 assets across the three releases. This does not constitute an atomic transaction across GitHub releases.
+
+The Linux native ARM64 gate now supplements the earlier cross-build-only evidence. The macOS native startup result covers the runner's ARM64 architecture; Intel was built, signed and inspected, not launched. Virtual-X11/native startup smoke tests do not establish real Spotify, native Wayland, permissions or installed-updater acceptance. Interactive acceptance remains **SKIP / not yet performed** for the newly published Linux/macOS behavior; macOS remains RC3.
+
+Post-publication checks downloaded all 15 public feed/RELEASES/checksum files across the three platforms, verified their bytes against GitHub asset sizes and SHA-256 values, and matched each manifest and full/delta entry to its exact package architecture/version. All 28 prior tag targets remained unchanged; the three new tags resolve to the released source above. Windows 1.3.12 is the repository Latest release. A read-only PC check still finds installed 1.3.11 and the same 76-setting JSON checksum; the new installer was not interactively installed or launched by these tests.
 
 ## Published baseline before this update
 
@@ -135,8 +151,8 @@ macOS, after producing app bundles for both architectures:
 ```
 
 Build workflows additionally create and inspect Linux tar/DEB/AppImage and
-macOS ZIP/DMG artifacts. The candidate workflow builds and executes Linux ARM64
-AppImage self-test/startup on a native ARM64 runner; its result remains pending.
+macOS ZIP/DMG artifacts. The current workflow built and executed Linux ARM64
+AppImage self-test/startup on a native ARM64 runner; the successful run is linked above.
 macOS startup is exercised
 only for the runner's native architecture; both architectures are packaged
 and inspected. A Windows build or headless self-test cannot replace these
@@ -158,8 +174,8 @@ Linux:
 - Verify Spicetify/Lyrics repair and update progress/cancellation/application on
   real managed/legacy AppImage, DEB and tar installations, including full
   fallback and settings preservation. Tar transitions retain manual download.
-- Record the new native ARM64 CI result separately from interactive ARM64
-  desktop acceptance; neither has been established by a Windows host build.
+- Keep the passing native ARM64 CI result separate from interactive ARM64
+  desktop acceptance, which remains open; a Windows host build establishes neither.
 
 macOS, before promotion toward stable:
 

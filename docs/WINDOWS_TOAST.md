@@ -1,8 +1,8 @@
 # Windows toast: Lyrics Plus clicks and Now Playing shortcut
 
-**[Windows 1.3.11 is published](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.3.11).** Native CI and [release workflow 41827896540](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41827896540) passed for source `a39bb4175299a66bbaa241fcb36c1f3dcf55c38c`. A real-client Lyrics Plus service probe also passed as described below. Earlier 1.3.9/1.3.10 behavior remains recorded in the history section.
+**[Windows 1.3.12 is published](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.3.12).** It preserves the Lyrics Plus and contextual Show Toast behavior introduced in 1.3.11, fixes silent manual Setup startup and automatic updater-restart loops, and passed 324 Windows regression checks. Linux 1.4.2 and macOS RC3 now provide the corresponding toast behavior; see the [three-platform matrix](CROSS_PLATFORM_PARITY.md) and [native build/publication evidence](PLATFORM_STATUS.md). The earlier 1.3.11 real-client service probe remains historical evidence below.
 
-## Windows 1.3.11 behavior
+## Current behavior (introduced in Windows 1.3.11)
 
 Click a toast's title, artist, artwork or background to request **Lyrics Plus** in Spotify. Enter/Space on either focused text line uses the same action. **Alt+Shift+J while a toast is visible keeps Go to Now Playing**; it does not open Lyrics Plus. Ctrl+drag still moves the toast; themes, positioning, playback controls and existing settings are preserved.
 
