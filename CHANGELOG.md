@@ -2,7 +2,7 @@
 
 Published releases are listed in [GitHub Releases](https://github.com/MarliusLab/Toastify-Reloaded/releases). Historical tags are preserved.
 
-## 1.3.9 - prepared for Windows publication after CI
+## 1.3.9 - 2026-11-03 (Windows stable patch)
 
 - Added Spotify's Go to Now Playing (`Alt+Shift+J`) after opening/restoring Spotify from a toast click or its Enter/Space action. This navigates to the currently playing item, without sending play/pause, skip, seek or a track URI.
 - Added the same shortcut while at least one toast is visible, including without toast focus. Overlapping toasts share one temporary registration; the last close releases it. Existing global-hotkey preferences and local fallback are preserved.
@@ -10,6 +10,7 @@ Published releases are listed in [GitHub Releases](https://github.com/MarliusLab
 - Check Spotify foreground ownership and held modifiers before native input, handle blocked/partial input and contain cancellation. A successful native input request is distinguished from app activation; interactive Spotify navigation acceptance remains separate.
 - Wait for Enter, Space and physical mouse-button release before moving focus, preventing held activation input from repeating into Spotify's playback controls.
 - Corrected the native INPUT union layout used by Windows input injection. Retained all 1.3.7 updater and 1.3.8 toast lifecycle fixes and the existing settings schema.
+- Validation: 189 Windows regression checks, 140 shared assertions, 14 release guards, three native main builds and both architecture installers passed. Published checksum manifest matches both installers. Real-client navigation and playback-continuity acceptance remains separate from automated fixtures.
 
 ## 1.3.8 - 2026-11-03 (Windows stable patch)
 

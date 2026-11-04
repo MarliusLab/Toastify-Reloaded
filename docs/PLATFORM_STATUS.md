@@ -4,13 +4,13 @@
 
 | Platform | Published version/tag | Scope | Publication state |
 |---|---|---|---|
-| Windows x64 / ARM64 | Stable `v1.3.8` | Toast click restores/opens Spotify; maintenance fixes and configuration preserved | Published; release workflow passed |
+| Windows x64 / ARM64 | Stable `v1.3.9` | Now Playing from click/Alt+Shift+J while a toast is visible; settings preserved | Published; release workflow passed |
 | Linux x64 / ARM64 | Stable `v1.4.1-linux` | Clickable title/artist links, safe metadata/openers, regression and release gates | Published; release workflow passed |
 | macOS Intel / Apple Silicon | Prerelease `v1.5.0-macos-rc.2` | Same track links, corrected RC self-test, reliable DMG sizing and native startup gate | Published; release workflow passed |
 
-Windows 1.3.8 passed its [release workflow 41636985889](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41636985889) for commit `eb63f7f314e6e41b4b71b83bd16b7c6d3939bc23`. Linux 1.4.1 and macOS RC2 remain at their tested commit `fc11dfb30ebb0846ed41fea473c76adadb117804`, with their original assets unchanged. Existing tags are preserved. The current platform downloads include 14 assets and SHA-256 manifests for all 11 packages. Earlier implementation/publication evidence is retained below as history.
+Windows 1.3.9 passed its [release workflow 41648205388](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41648205388) for commit `892faf3af2706303997579fe2c3a3e140dae495b`. Linux 1.4.1 and macOS RC2 remain at their tested commit `fc11dfb30ebb0846ed41fea473c76adadb117804`, with their original assets unchanged. Existing tags are preserved. The current platform downloads include 14 assets and SHA-256 manifests for all 11 packages. Earlier implementation/publication evidence is retained below as history.
 
-Windows 1.3.8 adds the previously missing normal toast click handler and preserves the version detection/progress/updater fixes. Its SMTC backend supplies no catalog URI, so Windows clicks activate Spotify without claiming exact-track selection. Linux 1.4.1 and macOS RC2 include track links from validated native identifiers. macOS remains a release candidate while the interactive acceptance work below is open. No Developer ID or notarization acceptance is established by the recorded ad-hoc CI signatures.
+Windows 1.3.9 adds Go to Now Playing after toast clicks and Alt+Shift+J while a toast is visible. It uses the documented desktop navigation shortcut without sending playback controls or selecting a track URI. Windows SMTC still supplies no catalog URI. Foreground/shortcut guards and remaining client-acceptance limits are described in [Windows toast behavior](WINDOWS_TOAST.md). Linux 1.4.1 and macOS RC2 include track links from validated native identifiers. macOS remains a release candidate while the interactive acceptance work below is open. No Developer ID or notarization acceptance is established by the recorded ad-hoc CI signatures.
 
 ## Historical audit baseline
 
@@ -168,7 +168,7 @@ The former RC1 self-test build blocker is resolved. The native macOS startup tes
 | Linux | [1.4.1](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.4.1-linux) | [Linux Release](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41624241687) | x64 AppImage, x64/ARM64 DEB and tar.gz, SHA256SUMS.txt |
 | macOS | [1.5.0 RC2](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.5.0-macos-rc.2) | [macOS Release](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41624322519) | Intel/Apple Silicon ZIP and DMG, SHA256SUMS-macOS.txt |
 
-Validation included 140 production version/parser/launcher assertions, 14 publication authorization/recovery tests, native platform build/self-test/startup gates and package validation. Windows 1.3.6 was the latest at that publication; Windows 1.3.7 subsequently became the global latest release and is now superseded by 1.3.8. macOS RC2 is a prerelease; interactive Spotify, permission and distribution-signing acceptance gaps remain as listed above.
+Validation included 140 production version/parser/launcher assertions, 14 publication authorization/recovery tests, native platform build/self-test/startup gates and package validation. Windows 1.3.6 was the latest at that publication; Windows 1.3.7 subsequently became the global latest release and was superseded by 1.3.8 and then 1.3.9. macOS RC2 is a prerelease; interactive Spotify, permission and distribution-signing acceptance gaps remain as listed above.
 
 ## Windows 1.3.7 maintenance validation
 
@@ -182,3 +182,10 @@ See [Windows maintenance](WINDOWS_MAINTENANCE.md) for the one-time manual upgrad
 [Published Windows 1.3.8](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.3.8) passed [release workflow 41636985889](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41636985889) at `eb63f7f314e6e41b4b71b83bd16b7c6d3939bc23`. The 109 Windows regression checks include 33 new service/WPF assertions for canonical links, app activation fallbacks, routed clicks, keyboard, retry/cancellation, and keeping a timed toast alive while activation is pending. The 140 shared assertions, 14 release guards, main Windows/Linux/macOS builds and both Windows architecture installers passed. The public checksum manifest matches both uploaded installer digests. Existing tags and Linux/macOS assets remain unchanged.
 
 Real-client foreground acceptance remains unconfirmed; automated service/WPF fixtures do not establish that result. See [Windows toast behavior](WINDOWS_TOAST.md).
+
+
+## Windows 1.3.9 Now Playing validation
+
+[Published Windows 1.3.9](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.3.9) passed [release workflow 41648205388](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41648205388) at `892faf3af2706303997579fe2c3a3e140dae495b`. Validation includes 189 Windows checks, 140 shared assertions, 14 release guards, the three native main builds and both Windows installer architectures. Tests cover held Enter/Space/mouse release before focus, balanced input and partial cleanup, foreign shortcut collisions, saved matching bindings, suspension/reacquisition, overlapping toast lifetime and actual WPF event routing. The public checksum manifest matches the uploaded installer digests. All older tags and Linux/macOS assets remain unchanged.
+
+Fixtures used simulated shell/input/registration adapters and isolated settings. They did not inject input into the real Spotify client or install software. Actual Spotify navigation and uninterrupted playback still require interactive acceptance; accepted native input alone does not establish that result.
