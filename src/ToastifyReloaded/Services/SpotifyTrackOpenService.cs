@@ -10,7 +10,8 @@ public enum SpotifyTrackOpenResult
     TrackOpened,
     AppActivated,
     Failed,
-    NowPlayingRequested
+    NowPlayingRequested,
+    LyricsPlusRequested
 }
 
 public readonly record struct SpotifyShortcutInput(ushort VirtualKey, bool KeyUp);
@@ -27,6 +28,7 @@ public interface ISpotifyNowPlayingInput
 /// <summary>Opens a trusted track link or activates Spotify without changing playback.</summary>
 public sealed class SpotifyTrackOpenService
 {
+    public const string LyricsPlusUri = "spotify:app:lyrics-plus";
     private readonly Func<string, CancellationToken, Task<bool>> _openUri;
     private readonly Func<CancellationToken, Task<bool>> _activateExisting;
     private readonly Func<TimeSpan, CancellationToken, Task> _delay;
@@ -38,6 +40,9 @@ public sealed class SpotifyTrackOpenService
         NativeMethods.VK_LWIN, NativeMethods.VK_RWIN, NativeMethods.VK_J,
         NativeMethods.VK_RETURN, NativeMethods.VK_SPACE, NativeMethods.VK_LBUTTON, NativeMethods.VK_RBUTTON
     };
+    // Show Toast is user-configurable (for example Ctrl+Up or Ctrl+F9).
+    // Wait for its complete physical trigger, including an arbitrary main key.
+    private static readonly ushort[] LyricsGuardKeys = Enumerable.Range(1, 254).Select(key => (ushort)key).ToArray();
     private static readonly SpotifyShortcutInput[] NowPlayingShortcut =
     {
         new(NativeMethods.VK_MENU, false), new(NativeMethods.VK_SHIFT, false), new(NativeMethods.VK_J, false),
@@ -63,6 +68,78 @@ public sealed class SpotifyTrackOpenService
         _nowPlayingInput = nowPlayingInput ?? new NativeNowPlayingInput();
         if (_attemptTimeout <= TimeSpan.Zero || _attemptTimeout > TimeSpan.FromMinutes(1))
             throw new ArgumentOutOfRangeException(nameof(attemptTimeout));
+    }
+
+    /// <summary>
+    /// Requests the fixed Lyrics Plus custom-app route without a track URI,
+    /// playback command or synthetic input. Success confirms protocol handoff,
+    /// not that Spicetify has displayed the page or found lyrics.
+    /// </summary>
+    public async Task<SpotifyTrackOpenResult> OpenLyricsPlusAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        using var budget = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, budget.Token);
+        try
+        {
+            // Reading live trigger state, ShellExecute and window activation
+            // all stay off the WPF thread, including the first guard check.
+            return await Task.Run(() => OpenLyricsPlusCoreAsync(linked.Token, cancellationToken), linked.Token)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return SpotifyTrackOpenResult.Failed;
+        }
+        catch (OperationCanceledException) { throw; }
+        catch { return SpotifyTrackOpenResult.Failed; }
+    }
+
+    private async Task<SpotifyTrackOpenResult> OpenLyricsPlusCoreAsync(
+        CancellationToken operationToken, CancellationToken userCancellationToken)
+    {
+        // ShellExecute itself may focus Spotify, so wait before the URI too.
+        // Recheck before each fallback if the user presses another trigger.
+        if (!await WaitForShortcutReleaseAsync(operationToken, allInput: true).ConfigureAwait(false))
+            return SpotifyTrackOpenResult.Failed;
+        if (await TryAsync(token => _openUri(LyricsPlusUri, token), operationToken).ConfigureAwait(false))
+        {
+            await FocusLyricsAfterLaunchAsync(operationToken, userCancellationToken).ConfigureAwait(false);
+            return SpotifyTrackOpenResult.LyricsPlusRequested;
+        }
+
+        if (!await WaitForShortcutReleaseAsync(operationToken, allInput: true).ConfigureAwait(false))
+            return SpotifyTrackOpenResult.Failed;
+        if (await TryAsync(_activateExisting, operationToken).ConfigureAwait(false))
+            return SpotifyTrackOpenResult.AppActivated;
+        if (!await WaitForShortcutReleaseAsync(operationToken, allInput: true).ConfigureAwait(false))
+            return SpotifyTrackOpenResult.Failed;
+        if (!await TryAsync(token => _openUri("spotify:", token), operationToken).ConfigureAwait(false))
+            return SpotifyTrackOpenResult.Failed;
+
+        await FocusLyricsAfterLaunchAsync(operationToken, userCancellationToken).ConfigureAwait(false);
+        return SpotifyTrackOpenResult.AppActivated;
+    }
+
+    private async Task FocusLyricsAfterLaunchAsync(CancellationToken operationToken, CancellationToken userCancellationToken)
+    {
+        try
+        {
+            for (var attempt = 0; attempt < 4; attempt++)
+            {
+                if (attempt > 0)
+                    await _delay(TimeSpan.FromMilliseconds(100 * attempt), operationToken)
+                        .WaitAsync(operationToken).ConfigureAwait(false);
+                if (!await WaitForShortcutReleaseAsync(operationToken, allInput: true).ConfigureAwait(false)) return;
+                if (await TryAsync(_activateExisting, operationToken).ConfigureAwait(false)) return;
+            }
+        }
+        catch (OperationCanceledException) when (userCancellationToken.IsCancellationRequested) { throw; }
+        catch
+        {
+            // A failed focus retry or the internal budget cannot retract an
+            // already accepted route/app handoff. Never send another command.
+        }
     }
 
     /// <summary>
@@ -156,9 +233,10 @@ public sealed class SpotifyTrackOpenService
         catch { return SpotifyTrackOpenResult.AppActivated; }
     }
 
-    private bool ShortcutKeysReleased() => ShortcutGuardKeys.All(key => !_nowPlayingInput.IsKeyDown(key));
+    private bool ShortcutKeysReleased(bool allInput = false)
+        => (allInput ? LyricsGuardKeys : ShortcutGuardKeys).All(key => !_nowPlayingInput.IsKeyDown(key));
 
-    private async Task<bool> WaitForShortcutReleaseAsync(CancellationToken cancellationToken)
+    private async Task<bool> WaitForShortcutReleaseAsync(CancellationToken cancellationToken, bool allInput = false)
     {
         using var releaseTimeout = new CancellationTokenSource(TimeSpan.FromMilliseconds(1500));
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, releaseTimeout.Token);
@@ -168,7 +246,7 @@ public sealed class SpotifyTrackOpenService
             for (var poll = 0; poll < 60; poll++)
             {
                 linked.Token.ThrowIfCancellationRequested();
-                if (ShortcutKeysReleased()) return true;
+                if (ShortcutKeysReleased(allInput)) return true;
                 await _delay(TimeSpan.FromMilliseconds(25), linked.Token).WaitAsync(linked.Token).ConfigureAwait(false);
             }
             return false;
@@ -294,12 +372,15 @@ public sealed class SpotifyTrackOpenService
     private static Task<bool> OpenProtocolAsync(string target, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        // Accept exactly the canonical targets generated by the shared helper.
-        if (target != "spotify:" && !SpotifyTrackLink.GetOpenTargets(target).Contains(target, StringComparer.Ordinal))
+        if (!IsAllowedProtocolTarget(target))
             return Task.FromResult(false);
         using var launched = Process.Start(new ProcessStartInfo(target) { UseShellExecute = true });
         return Task.FromResult(true);
     }
+
+    internal static bool IsAllowedProtocolTarget(string target) =>
+        target == "spotify:" || target == LyricsPlusUri ||
+        SpotifyTrackLink.GetOpenTargets(target).Contains(target, StringComparer.Ordinal);
 
     private static async Task<bool> ActivateExistingSpotifyAsync(CancellationToken cancellationToken)
     {

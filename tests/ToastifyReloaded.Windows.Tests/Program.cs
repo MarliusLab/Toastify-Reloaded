@@ -35,7 +35,9 @@ internal static class Program
             await UiTests.RunAsync(Check);
             await WindowsPackageUiTests.RunAsync(Check);
             await SpotifyTrackOpenTests.RunAsync(Check);
+            await LyricsPlusOpenTests.RunAsync(Check);
             await ToastTests.RunAsync(Check);
+            await ToastShowHotkeyTests.RunAsync(Check);
             await ToastHotkeyTests.RunAsync(Check);
             Console.WriteLine($"WINDOWS REGRESSION TEST RESULT: PASS ({count})");
             return 0;
