@@ -433,7 +433,7 @@ public partial class MainWindow : Window
     private void ShowToast(TrackInfo track)
     {
         var toast = new ToastWindow(track, _settings, _globalHotkeys?.ToastNowPlaying);
-        var lease = _showToastHotkey.Attach(() => toast.CanHandleLyricsPlusRequest, toast.RequestLyricsPlusAsync);
+        var lease = _showToastHotkey.Attach(() => toast.CanHandleLyricsPlusRequest, toast.RequestLyricsPlusFromHotkeyAsync);
         toast.Closed += (_, _) => lease.Dispose();
         try { toast.ShowTimed(); }
         catch { lease.Dispose(); throw; }

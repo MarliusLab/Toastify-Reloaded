@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION="${1:-1.4.3}"
+VERSION="${1:-1.4.4}"
 PUBLISH="$ROOT/dist/linux-x64"
 PKGROOT="$ROOT/dist/deb-root"
 OUT="$ROOT/dist/toastify-reloaded_${VERSION}_amd64.deb"

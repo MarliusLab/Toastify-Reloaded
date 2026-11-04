@@ -90,8 +90,8 @@ def verify_projects_and_navigation():
         require(shared and shared <= included, project + ": all common source files must be compiled")
         main = f"src/{project}/MainWindow." + ("xaml.cs" if platform == "windows" else "axaml.cs")
         toast = f"src/{project}/ToastWindow." + ("xaml.cs" if platform == "windows" else "axaml.cs")
-        require_tokens(main, "ToastShowHotkeyController", "Attach", "ExecuteAsync", "RequestLyricsPlusAsync")
-        require_tokens(toast, "CanHandleLyricsPlusRequest", "RequestLyricsPlusAsync", "OpenLyricsPlusAsync")
+        require_tokens(main, "ToastShowHotkeyController", "Attach", "ExecuteAsync", "RequestLyricsPlusFromHotkeyAsync")
+        require_tokens(toast, "CanHandleLyricsPlusRequest", "RequestLyricsPlusAsync", "RequestLyricsPlusFromHotkeyAsync", "OpenLyricsPlusAsync")
         if platform == "windows":
             require_tokens(toast, "ToastNowPlayingHotkeyCoordinator", "RunSuspendedAsync")
             require_tokens("src/ToastifyReloaded/Models/AppSettings.cs", "Hotkeys", "ShowToast")

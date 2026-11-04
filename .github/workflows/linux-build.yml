@@ -42,6 +42,11 @@ jobs:
       - name: Test track links and safe launcher fallbacks
         run: dotnet run --project tests/ToastifyReloaded.TrackLink.Tests -c Release
 
+      - name: Test real timed Linux and macOS toast lifetimes without opening windows
+        run: |
+          dotnet build tests/ToastifyReloaded.Avalonia.Tests -c Release --nologo -m:1
+          dotnet run --project tests/ToastifyReloaded.Avalonia.Tests -c Release --no-build
+
       - name: Install pinned Velopack CLI
         run: dotnet tool install vpk --version 1.2.161 --tool-path .tools/vpk
 
@@ -92,7 +97,7 @@ jobs:
           chmod +x scripts/package-linux-tar.sh scripts/package-linux-deb.sh scripts/package-linux-velopack.sh
           ./scripts/package-linux-tar.sh
           ./scripts/package-linux-deb.sh
-          ./scripts/package-linux-velopack.sh x64 1.4.3
+          ./scripts/package-linux-velopack.sh x64 1.4.4
           VERSION="$(sed -nE 's/.*<Version>([^<]+)<\/Version>.*/\1/p' src/ToastifyReloaded.Linux/ToastifyReloaded.Linux.csproj)"
           TARGET="dist/ToastifyReloadedLinux-$VERSION-linux-x64-full.nupkg"
           OLD="$(find dist/velopack/linux-x64 -maxdepth 1 -name 'ToastifyReloadedLinux-*-linux-x64-full.nupkg' ! -name "${TARGET##*/}" -print -quit)"
@@ -120,7 +125,7 @@ jobs:
           set -euo pipefail
           APPIMAGE_EXTRACT_AND_RUN=1 dist/ToastifyReloaded-Linux-x64.AppImage --self-test
           TOASTIFY_SMOKE_APP="$GITHUB_WORKSPACE/dist/ToastifyReloaded-Linux-x64.AppImage" TOASTIFY_SMOKE_LOG="$GITHUB_WORKSPACE/dist/linux-appimage-smoke.log" APPIMAGE_EXTRACT_AND_RUN=1 ./scripts/test-linux-ci.sh
-          test -s dist/ToastifyReloadedLinux-1.4.3-linux-x64-full.nupkg
+          test -s dist/ToastifyReloadedLinux-1.4.4-linux-x64-full.nupkg
           test -s dist/releases.linux-x64.json
           test -s dist/SHA256SUMS-linux-x64.txt
 
@@ -232,7 +237,7 @@ jobs:
           chmod +x scripts/package-linux-arm64-tar.sh scripts/package-linux-arm64-deb.sh scripts/package-linux-velopack.sh
           ./scripts/package-linux-arm64-tar.sh
           ./scripts/package-linux-arm64-deb.sh
-          ./scripts/package-linux-velopack.sh arm64 1.4.3
+          ./scripts/package-linux-velopack.sh arm64 1.4.4
           VERSION="$(sed -nE 's/.*<Version>([^<]+)<\/Version>.*/\1/p' src/ToastifyReloaded.Linux/ToastifyReloaded.Linux.csproj)"
           TARGET="dist/ToastifyReloadedLinux-$VERSION-linux-arm64-full.nupkg"
           OLD="$(find dist/velopack/linux-arm64 -maxdepth 1 -name 'ToastifyReloadedLinux-*-linux-arm64-full.nupkg' ! -name "${TARGET##*/}" -print -quit)"

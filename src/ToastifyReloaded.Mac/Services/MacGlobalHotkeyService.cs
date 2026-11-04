@@ -14,7 +14,7 @@ public sealed class MacGlobalHotkeyService : IDisposable
     private readonly Func<Task>? _nowPlaying;
     private readonly object _sync = new();
     private readonly HashSet<KeyCode> _pressed = new();
-    private readonly Dictionary<Shortcut, Func<Task>> _bindings = new();
+    private readonly Dictionary<Shortcut, Binding> _bindings = new();
 
     private SimpleGlobalHook? _hook;
     private Task? _hookTask;
@@ -67,7 +67,7 @@ public sealed class MacGlobalHotkeyService : IDisposable
         AddBinding(settings.HotkeyMute, _spotify.ToggleMuteAsync);
         AddBinding(settings.HotkeySeekForward, _spotify.SeekForwardAsync);
         AddBinding(settings.HotkeySeekBackward, _spotify.SeekBackwardAsync);
-        if (_showToast is not null) AddBinding(settings.HotkeyShowToast, _showToast);
+        if (_showToast is not null) AddBinding(settings.HotkeyShowToast, _showToast, allowHeldModifiers: true);
 
         UioHookProvider.Instance.KeyTypedEnabled = false;
 
@@ -196,11 +196,13 @@ public sealed class MacGlobalHotkeyService : IDisposable
             out keyCode);
     }
 
-    private void AddBinding(string text, Func<Task> action)
+    private sealed record Binding(Func<Task> Action, bool AllowHeldModifiers);
+
+    private void AddBinding(string text, Func<Task> action, bool allowHeldModifiers = false)
     {
         var shortcut = ParseShortcut(text);
         if (shortcut is not null)
-            lock (_sync) _bindings.TryAdd(shortcut.Value, action);
+            lock (_sync) _bindings.TryAdd(shortcut.Value, new(action, allowHeldModifiers));
     }
 
     private void Hook_KeyPressed(object? sender, KeyboardHookEventArgs e)
@@ -225,13 +227,13 @@ public sealed class MacGlobalHotkeyService : IDisposable
         }
         else
         {
-            Func<Task>? action;
-            lock (_sync) _bindings.TryGetValue(shortcut, out action);
-            if (action is not null) QueueAfterRelease(shortcut, action);
+            Binding? binding;
+            lock (_sync) _bindings.TryGetValue(shortcut, out binding);
+            if (binding is not null) QueueAfterRelease(shortcut, binding.Action, binding.AllowHeldModifiers);
         }
     }
 
-    private void QueueAfterRelease(Shortcut shortcut, Func<Task> action)
+    private void QueueAfterRelease(Shortcut shortcut, Func<Task> action, bool allowHeldModifiers = false)
     {
         var generation = Volatile.Read(ref _generation);
         lock (_sync) if (!_pending.Add(shortcut)) return;
@@ -243,7 +245,7 @@ public sealed class MacGlobalHotkeyService : IDisposable
                 {
                     if (generation != Volatile.Read(ref _generation)) return;
                     bool released;
-                    lock (_sync) released = _pressed.Count == 0;
+                    lock (_sync) released = CanDispatchAfterRelease(_pressed, allowHeldModifiers);
                     if (released) { await action(); return; }
                     await Task.Delay(25);
                 }
@@ -252,6 +254,11 @@ public sealed class MacGlobalHotkeyService : IDisposable
             finally { lock (_sync) _pending.Remove(shortcut); }
         });
     }
+
+    internal static bool CanDispatchAfterRelease(IEnumerable<KeyCode> pressed, bool allowHeldModifiers)
+        => !pressed.Any(key => !allowHeldModifiers || key is not (KeyCode.VcLeftControl or KeyCode.VcRightControl or
+            KeyCode.VcLeftAlt or KeyCode.VcRightAlt or KeyCode.VcLeftShift or KeyCode.VcRightShift or
+            KeyCode.VcLeftMeta or KeyCode.VcRightMeta or KeyCode.VcCapsLock));
 
     public async Task<T> RunNowPlayingSuspendedAsync<T>(Func<Task<T>> action)
     {

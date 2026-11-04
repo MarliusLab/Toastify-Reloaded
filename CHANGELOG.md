@@ -2,6 +2,12 @@
 
 Published releases are listed in [GitHub Releases](https://github.com/MarliusLab/Toastify-Reloaded/releases). Historical tags are preserved.
 
+## 1.3.14 / 1.4.4-linux / 1.5.0-macos-rc.5 - in preparation
+
+- Reproduced the actual Ctrl+Up failure with Control held across a two-second interval on the complete Windows hotkey/controller/ShowTimed/service path. The dedicated Show Toast Lyrics route now permits held modifiers after primary-key/mouse release. Normal clicks/Enter and Now Playing retain strict input guards; no synthetic input or playback command is added.
+- Keep visible toasts actionable during exit animation, invalidate stale close callbacks and hold the same window while navigation is pending. Entry completion cannot restart the expiration timer during an action. Resume configured close afterwards and preserve settings, shortcuts and appearance.
+- Apply the same hotkey routing and timed-lifetime behavior to Linux and macOS; the macOS hook also stops waiting for all modifiers. Add actual Avalonia headless production-window tests alongside the real WPF timed-path regressions and service guard cases. Controller-only delay tests remain narrower evidence and did not prove the original held-Ctrl workflow.
+
 ## 1.3.13 / 1.4.3-linux / 1.5.0-macos-rc.4 - 2026-11-04
 
 - Reproduced the actual NSIS `System.dll` collision under Windows PowerShell 5.1 x86 and x64. Compile the desktop-user launcher from the trusted CLR directory with absolute framework references, restore both working directories, and retain the non-elevated restart requirement.

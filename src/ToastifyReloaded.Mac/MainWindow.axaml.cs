@@ -189,7 +189,7 @@ public partial class MainWindow : Window
             if (_closed) return;
             _toasts.Add(toast);
             var shown = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            var lease = _showToastHotkey.Attach(() => toast.CanHandleLyricsPlusRequest, toast.RequestLyricsPlusAsync);
+            var lease = _showToastHotkey.Attach(() => toast.CanHandleLyricsPlusRequest, toast.RequestLyricsPlusFromHotkeyAsync);
             toast.Opened += (_, _) => { UpdateVisibleToastCount(); shown.TrySetResult(); };
             toast.PropertyChanged += (_, e) => { if (e.Property == IsVisibleProperty) UpdateVisibleToastCount(); };
             toast.Closed += (_, _) => { lease.Dispose(); _toasts.Remove(toast); UpdateVisibleToastCount(); };

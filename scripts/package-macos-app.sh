@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RID="${1:-}"
 VERSION="${TOASTIFY_MACOS_VERSION:-1.5.0}"
-BUILD_VERSION="${TOASTIFY_MACOS_BUILD_VERSION:-1504}"
+BUILD_VERSION="${TOASTIFY_MACOS_BUILD_VERSION:-1505}"
 
 case "$RID" in
   osx-x64|osx-arm64) ;;

@@ -22,6 +22,7 @@ public partial class ToastWindow : Window
     private readonly CancellationTokenSource _lifetime = new();
     private readonly ToastifyReloaded.Shared.ToastNavigationGate _actions;
     private bool _closed, _exiting;
+    private int _navigationGeneration;
     private readonly ToastKeyboardNavigation _keyboardNavigation = new();
     internal bool CanHandleLyricsPlusRequest => IsVisible && !_closed;
 
@@ -91,25 +92,33 @@ public partial class ToastWindow : Window
         var started = DateTime.UtcNow;
         var initialPosition = _track.PositionSeconds;
 
-        while (!_closed && ((DateTime.UtcNow - started).TotalMilliseconds <
-               _settings.ToastDisplayMs || _openingTrack || DateTime.UtcNow < _statusUntil))
+        while (!_closed)
         {
-            var elapsed = _track.IsPlaying
-                ? (DateTime.UtcNow - started).TotalSeconds
-                : 0;
+            while (!_closed && ((DateTime.UtcNow - started).TotalMilliseconds <
+                   _settings.ToastDisplayMs || _openingTrack || DateTime.UtcNow < _statusUntil))
+            {
+                var elapsed = _track.IsPlaying
+                    ? (DateTime.UtcNow - started).TotalSeconds
+                    : 0;
 
-            var current = Math.Min(
-                _track.DurationSeconds,
-                Math.Max(0, initialPosition + elapsed));
+                var current = Math.Min(
+                    _track.DurationSeconds,
+                    Math.Max(0, initialPosition + elapsed));
 
-            UpdateTimeline(current);
-            await Task.Delay(250, _lifetime.Token);
+                UpdateTimeline(current);
+                await Task.Delay(250, _lifetime.Token);
+            }
+
+            if (_closed) return;
+            _exiting = true;
+            var exitGeneration = _navigationGeneration;
+            if (await AnimateOutAsync(screen, exitGeneration) && _exiting && !_openingTrack &&
+                exitGeneration == _navigationGeneration && !_closed)
+            {
+                Close();
+                return;
+            }
         }
-
-        if (_closed) return;
-        _exiting = true;
-        await AnimateOutAsync(screen);
-        Close();
         }
         catch (OperationCanceledException) when (_closed) { }
     }
@@ -144,10 +153,13 @@ public partial class ToastWindow : Window
         await RequestLyricsPlusAsync();
     }
 
-    internal Task RequestLyricsPlusAsync() => !CanHandleLyricsPlusRequest || _exiting
+    internal Task RequestLyricsPlusAsync() => !CanHandleLyricsPlusRequest
         ? Task.CompletedTask : RequestNavigationAsync(lyrics: true);
 
-    internal Task RequestCurrentTrackAsync() => !CanHandleLyricsPlusRequest || _exiting
+    internal Task RequestLyricsPlusFromHotkeyAsync() => !CanHandleLyricsPlusRequest
+        ? Task.CompletedTask : RequestNavigationAsync(lyrics: true, fromHotkey: true);
+
+    internal Task RequestCurrentTrackAsync() => !CanHandleLyricsPlusRequest
         ? Task.CompletedTask : RequestNavigationAsync(lyrics: false, currentTrack: true);
 
     private void OnNavigationKeyDown(object? sender, KeyEventArgs e)
@@ -164,17 +176,25 @@ public partial class ToastWindow : Window
         else if (action == ToastKeyboardAction.CurrentTrack) await RequestCurrentTrackAsync();
     }
 
-    private Task RequestNavigationAsync(bool lyrics, bool currentTrack = false) => _actions.RunAsync(async () =>
+    private Task RequestNavigationAsync(bool lyrics, bool currentTrack = false, bool fromHotkey = false) => _actions.RunAsync(async () =>
     {
-        if (_openingTrack || _closed || _exiting)
+        if (_openingTrack || _closed || !IsVisible)
             return;
 
         _openingTrack = true;
+        _navigationGeneration++;
+        // A visible fade-out is still a live toast. Stop that exit cycle before
+        // yielding to the opener so its old deadline cannot cancel this action.
+        _exiting = false;
+        Opacity = 1;
         try
         {
+            Position = GetFinalPosition(ResolveTargetScreen());
             // Use the same immutable snapshot as the displayed title/artist,
             // even if Spotify changes tracks while this toast is still open.
-            var result = lyrics ? await _trackOpener.OpenLyricsPlusAsync(_lifetime.Token)
+            var result = lyrics ? fromHotkey
+                ? await _trackOpener.OpenLyricsPlusFromHotkeyAsync(_lifetime.Token)
+                : await _trackOpener.OpenLyricsPlusAsync(_lifetime.Token)
                 : currentTrack ? await _trackOpener.OpenCurrentTrackAsync(_lifetime.Token)
                 : await _trackOpener.OpenAsync(_track.TrackUri, _lifetime.Token);
             if (_closed) return;
@@ -338,6 +358,7 @@ public partial class ToastWindow : Window
 
         for (var i = 0; i <= steps; i++)
         {
+            if (_openingTrack || _navigationGeneration > 0) break;
             var t = (double)i / steps;
 
             Opacity = _settings.AnimationStyle == "None"
@@ -357,7 +378,7 @@ public partial class ToastWindow : Window
         Position = finalPosition;
     }
 
-    private async Task AnimateOutAsync(Screen screen)
+    private async Task<bool> AnimateOutAsync(Screen screen, int generation)
     {
         var duration = Math.Max(0, _settings.FadeOutMs);
         var steps = Math.Max(1, duration / 16);
@@ -374,6 +395,8 @@ public partial class ToastWindow : Window
 
         for (var i = 0; i <= steps; i++)
         {
+            if (!_exiting || _openingTrack || generation != _navigationGeneration || DateTime.UtcNow < _statusUntil)
+                return false;
             var t = (double)i / steps;
 
             Opacity = _settings.AnimationStyle == "None"
@@ -388,6 +411,7 @@ public partial class ToastWindow : Window
             if (duration > 0)
                 await Task.Delay(16, _lifetime.Token);
         }
+        return true;
     }
 
     private void PositionAtEnd(Screen screen, bool entering)

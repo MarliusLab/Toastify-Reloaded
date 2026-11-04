@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Headless" Version="12.1.1" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.1" />
+    <ProjectReference Include="../../src/ToastifyReloaded.Mac/ToastifyReloaded.Mac.csproj" Aliases="MacApp" />
+    <ProjectReference Include="../../src/ToastifyReloaded.Linux/ToastifyReloaded.Linux.csproj" Aliases="LinuxApp" />
+  </ItemGroup>
+</Project>

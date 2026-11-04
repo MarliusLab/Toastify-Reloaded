@@ -16,6 +16,10 @@ internal static class LinuxLyricsTests
         check(await opener.OpenLyricsPlusAsync() == SpotifyTrackOpenResult.LyricsPlusRequested && calls.Count == 1 &&
               calls[0].File == "xdg-open" && calls[0].Args.SequenceEqual(new[] { "spotify:app:lyrics-plus" }),
             "Linux Lyrics Plus uses one fixed URI argument without track metadata or playback commands");
+        calls.Clear();
+        check(await opener.OpenLyricsPlusFromHotkeyAsync() == SpotifyTrackOpenResult.LyricsPlusRequested && calls.Count == 1 &&
+              calls[0].Args.SequenceEqual(new[] { "spotify:app:lyrics-plus" }),
+            "Linux dedicated hotkey route requests the same fixed URI without an added modifier-release wait");
         calls.Clear(); responses.Enqueue(1); responses.Enqueue(0);
         check(await opener.OpenLyricsPlusAsync() == SpotifyTrackOpenResult.AppActivated && calls.Count == 2 &&
               calls[1].File == "gdbus" && calls[1].Args.Last() == "org.mpris.MediaPlayer2.Raise",

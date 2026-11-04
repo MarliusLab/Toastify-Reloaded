@@ -71,6 +71,11 @@ public sealed class SpotifyTrackOpenService
         { return SpotifyTrackOpenResult.Failed; }
     }
 
+    // X11 dispatches on primary-key release; Wayland uses the portal's release
+    // signal. A held Ctrl/Alt/Shift does not require synthetic-input forwarding.
+    public Task<SpotifyTrackOpenResult> OpenLyricsPlusFromHotkeyAsync(CancellationToken cancellationToken = default)
+        => OpenLyricsPlusAsync(cancellationToken);
+
     public async Task<SpotifyTrackOpenResult> OpenAsync(string? trackUri, CancellationToken cancellationToken = default)
     {
         foreach (var target in SpotifyTrackLink.GetOpenTargets(trackUri))

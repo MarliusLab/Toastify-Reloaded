@@ -29,5 +29,6 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="../ToastifyReloaded.Shared/*.cs" Link="Shared/%(Filename)%(Extension)" />
+    <InternalsVisibleTo Include="ToastifyReloaded.Avalonia.Tests" />
   </ItemGroup>
 </Project>
