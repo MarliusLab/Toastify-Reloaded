@@ -8,11 +8,12 @@ on:
       - "!v*-macos*"
 
   workflow_run:
-    workflows: ["build"]
+    workflows: ["build", "Linux Build", "macOS Build"]
     types: [completed]
     branches: [main]
 
 permissions:
+  actions: read
   contents: write
 
 concurrency:
@@ -34,86 +35,35 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha || github.ref }}
           persist-credentials: false
 
-      - name: Validate explicit release plan and trusted source commit
+      - name: Require all three tested main builds and an immutable release target
         id: prepare
         env:
           GH_TOKEN: ${{ github.token }}
         run: python scripts/prepare-release.py windows
 
-      - uses: actions/setup-dotnet@v5
+      - name: Download the verified Windows packages from their exact main build
         if: steps.prepare.outputs.publish == 'true'
+        uses: actions/download-artifact@v5
         with:
-          dotnet-version: 8.0.x
+          name: ToastifyReloaded-Windows-packages
+          path: dist/windows-release
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.prepare.outputs.windows_build_run }}
 
-      - name: Verify Windows tag matches application version
+      - name: Verify downloaded Windows feeds, packages and checksums without rebuilding
         if: steps.prepare.outputs.publish == 'true'
         shell: pwsh
         run: |
-          [xml]$project = Get-Content src/ToastifyReloaded/ToastifyReloaded.csproj -Raw
-          $version = $project.SelectSingleNode('/Project/PropertyGroup/Version').InnerText.Trim()
-          if ($env:RELEASE_TAG -notin @("v$version", "v.$version")) {
-            throw "Windows tag does not match application version $version"
-          }
-          Write-Host "PASS: Windows tag matches application version $version"
-
-      - name: Install NSIS
-        if: steps.prepare.outputs.publish == 'true'
-        shell: pwsh
-        run: choco install nsis -y --no-progress
-
-      - name: Test release versions and Spotify track links
-        if: steps.prepare.outputs.publish == 'true'
-        run: dotnet run --project tests/ToastifyReloaded.TrackLink.Tests -c Release
-
-      - name: Test versioned package feeds and immutable delta bases
-        if: steps.prepare.outputs.publish == 'true'
-        run: python scripts/test-velopack-release.py
-
-      - name: Test pinned draft recovery and token-safe private asset transport
-        if: steps.prepare.outputs.publish == 'true'
-        run: python scripts/test-recover-windows-draft.py
-
-      - name: Install pinned Velopack CLI
-        if: steps.prepare.outputs.publish == 'true'
-        run: dotnet tool install vpk --version 1.2.161 --tool-path .tools/vpk
-
-      - name: Test migration and rollback without installing
-        if: steps.prepare.outputs.publish == 'true'
-        shell: pwsh
-        run: .\scripts\test-windows-package-migration.ps1
-
-      - name: Verify synthetic delta chain and corrupt-delta full fallback
-        if: steps.prepare.outputs.publish == 'true'
-        shell: pwsh
-        run: |
-          $report = python scripts/test-velopack-delta.py --vpk .tools/vpk/vpk.exe --package-id ToastifyReloaded --versions 1.3.10 1.3.11 1.3.12 --keep-fixtures
-          if ($LASTEXITCODE -ne 0) { throw 'Native delta probe failed' }
-          $probe = $report | ConvertFrom-Json
-          $helper = (Resolve-Path .tools/vpk/.store/vpk/1.2.161/vpk/1.2.161/vendor/update_x64.exe).Path
-          "TOASTIFY_VELOPACK_FIXTURES=$($probe.fixture_directory)" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
-          "TOASTIFY_VELOPACK_PATCH_HELPER=$helper" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
-          Write-Host $report
-
-      - name: Test Windows features and real updater patch-only full fallback
-        if: steps.prepare.outputs.publish == 'true'
-        run: dotnet run --project tests/ToastifyReloaded.Windows.Tests -c Release
-
-      - name: Build and verify Windows x64 and ARM64 packages
-        if: steps.prepare.outputs.publish == 'true'
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          [xml]$project = Get-Content src/ToastifyReloaded/ToastifyReloaded.csproj -Raw
-          $version = $project.SelectSingleNode('/Project/PropertyGroup/Version').InnerText.Trim()
-          foreach ($runtime in @('win-x64', 'win-arm64')) {
-            $base = "artifacts/velopack-base/$runtime"
-            python scripts/prepare-velopack-base.py --version $version --runtime $runtime --output $base
-            if ($LASTEXITCODE -ne 0) { throw "Previous-release verification failed for $runtime" }
-            .\scripts\build-windows-packages.ps1 -Runtime $runtime -PreviousReleaseDir $base
-          }
-          python scripts/finalize-velopack-release.py --directory dist/windows-release --version $version
-          if ($LASTEXITCODE -ne 0) { throw 'Windows publication contract validation failed' }
+          $validation = @'
+          import os
+          import sys
+          from pathlib import Path
+          sys.path.insert(0, "scripts")
+          from velopack_release import validate_stage
+          validate_stage(Path("dist/windows-release"), os.environ["RELEASE_TAG"].removeprefix("v"))
+          '@
+          $validation | python -
+          if ($LASTEXITCODE -ne 0) { throw 'Downloaded Windows package verification failed' }
 
       - name: Upload verified packages to a private draft
         id: upload
@@ -129,23 +79,12 @@ jobs:
           make_latest: false
           prerelease: false
           fail_on_unmatched_files: true
-          files: |
-            dist/windows-release/*
+          files: dist/windows-release/*
 
-      - name: Verify uploaded feed hashes and publish complete release
+      - name: Verify uploaded feed hashes and publish the complete stable release
         if: steps.prepare.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_SOURCE_SHA: ${{ steps.prepare.outputs.release_sha }}
           RELEASE_ID: ${{ steps.upload.outputs.id }}
         run: python scripts/publish-windows-release.py --tag $env:RELEASE_TAG --sha $env:RELEASE_SOURCE_SHA --release-id $env:RELEASE_ID --directory dist/windows-release
-
-      - name: Upload delta validation evidence
-        if: always() && steps.prepare.outputs.publish == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: Windows-release-validation
-          path: |
-            artifacts/velopack-delta-probe.json
-            artifacts/velopack-base/**/base.json
-          if-no-files-found: ignore

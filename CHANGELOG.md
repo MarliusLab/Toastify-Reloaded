@@ -2,6 +2,16 @@
 
 Published releases are listed in [GitHub Releases](https://github.com/MarliusLab/Toastify-Reloaded/releases). Historical tags are preserved.
 
+## 1.3.12 / 1.4.2-linux / 1.5.0-macos-rc.3 - in preparation
+
+- Ported Lyrics Plus toast clicks, keyboard activation and the saved Show Toast shortcut's contextual behavior to Linux and macOS. First press shows the toast; another press while a toast is visible requests the fixed Lyrics Plus page. Existing settings and playback controls are retained. Lyrics Plus must already be applied in Spotify.
+- Kept Alt+Shift+J separate from Lyrics Plus. Windows/macOS retain Now Playing navigation; Linux resolves fresh validated MPRIS identity with Spotify activation fallback. Linux X11 temporarily owns the chord while a toast is visible; Wayland supports it locally while the approved portal Show Toast shortcut remains global.
+- Shared the Show Toast state controller, navigation serialization, bounded process runner, progress model and updater-restart policy. Linux/macOS discover Spotify and Spicetify independently and expose download progress, cancellation and retry without blocking media startup.
+- Added native Velopack AppImage and macOS bundle feeds for x64/ARM64, verified full baselines, future delta generation and full fallback. The initial Linux/macOS package releases establish their first baselines; they do not claim a delta from legacy packages. Existing DEB/tar and ZIP/DMG delivery paths and saved settings remain available.
+- Fixed both Windows compatibility installers aborting silently before their wizard when the optional restart argument was absent. Invalid arguments, another active Setup and ARM64 Setup on an incompatible PC now produce visible errors. Normal-user restart diagnostics identify failed handoff stages. Automatic installation does not loop after an updater restart; explicit retry remains available.
+- Required successful Windows, Linux and macOS main builds at the same SHA before any of the three releases can publish. Release jobs reuse those exact verified artifacts, check uploaded manifests/feeds and retain immutable historical tags. Added a permanent repository rule and CI parity checks for future Windows changes.
+- macOS remains an RC. Native Spotify interaction, desktop permissions, installed-client upgrade/rollback and distribution signing/notarization acceptance remain distinct from automated build and packaging checks.
+
 ## 1.3.11 - 2026-11-04 (Windows stable update)
 
 - Changed toast title, artist, artwork and background clicks and Enter/Space activation to request Lyrics Plus for Spotify's current player item through the fixed `spotify:app:lyrics-plus` page. Alt+Shift+J while a toast is visible retains Go to Now Playing.

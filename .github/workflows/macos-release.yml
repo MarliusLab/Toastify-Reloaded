@@ -8,9 +8,13 @@ on:
       - "v*-macos-rc.*"
 
   workflow_run:
-    workflows: ["macOS Build"]
+    workflows: ["build", "Linux Build", "macOS Build"]
     types: [completed]
     branches: [main]
+
+permissions:
+  actions: read
+  contents: write
 
 concurrency:
   group: publish-macos
@@ -24,157 +28,58 @@ jobs:
        github.event.workflow_run.event == 'push' &&
        github.event.workflow_run.head_branch == 'main' &&
        github.event.workflow_run.head_repository.full_name == github.repository)
-    runs-on: macos-latest
-    permissions:
-      contents: write
-
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.ref }}
           persist-credentials: false
 
-      - name: Validate explicit release plan and trusted source commit
+      - name: Require all three tested main builds and an immutable release target
         id: prepare
         env:
           GH_TOKEN: ${{ github.token }}
         run: python scripts/prepare-release.py macos
 
-      - uses: actions/setup-dotnet@v5
+      - name: Download signed and tested macOS packages from their exact main build
         if: steps.prepare.outputs.publish == 'true'
+        uses: actions/download-artifact@v5
         with:
-          dotnet-version: "8.0.x"
+          name: toastify-reloaded-macos
+          path: dist
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.prepare.outputs.macos_build_run }}
 
-      - name: Prepare scripts
-        if: steps.prepare.outputs.publish == 'true'
-        run: chmod +x scripts/*macos*.sh
-
-      - name: Verify tag, application version and release notes
-        if: steps.prepare.outputs.publish == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          grep -Fq "public const string CurrentTag = \"${RELEASE_TAG}\";" \
-            src/ToastifyReloaded.Mac/Services/MacUpdateService.cs
-          python3 - <<'PY'
-          import os
-          import re
-          import xml.etree.ElementTree as ET
-          from pathlib import Path
-
-          version = ET.parse("src/ToastifyReloaded.Mac/ToastifyReloaded.Mac.csproj").findtext("./PropertyGroup/Version")
-          tag = os.environ["RELEASE_TAG"]
-          assert version and re.fullmatch(r"v" + re.escape(version) + r"-macos(?:-(?:preview|rc)\.[1-9][0-9]*)?", tag), "macOS tag and project version differ"
-          assert Path("docs/releases", tag + ".md").is_file(), "Version-specific release notes are missing"
-          print("PASS: tag, application version and release notes match:", tag)
-          PY
-
-      - name: Verify Windows/Linux/macOS feature parity contract
-        if: steps.prepare.outputs.publish == 'true'
-        run: python3 scripts/validate-macos-parity.py
-
-      - name: Build and run native macOS self-test
-        if: steps.prepare.outputs.publish == 'true'
-        run: ./scripts/test-macos-ci.sh
-
-      - name: Test track links and safe launcher fallbacks
-        if: steps.prepare.outputs.publish == 'true'
-        run: dotnet run --project tests/ToastifyReloaded.TrackLink.Tests -c Release
-
-      - name: Publish Intel and Apple Silicon
-        if: steps.prepare.outputs.publish == 'true'
-        run: |
-          ./scripts/build-macos.sh osx-x64
-          ./scripts/build-macos.sh osx-arm64
-
-      - name: Configure optional Developer ID signing
-        if: steps.prepare.outputs.publish == 'true'
-        env:
-          APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_KEYCHAIN_PASSWORD: ${{ secrets.APPLE_KEYCHAIN_PASSWORD }}
-          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
-        run: ./scripts/setup-macos-signing.sh
-
-      - name: Create signed app bundles
-        if: steps.prepare.outputs.publish == 'true'
-        run: |
-          ./scripts/package-macos-app.sh osx-x64
-          ./scripts/package-macos-app.sh osx-arm64
-
-      - name: Notarize when Apple credentials are configured
-        if: steps.prepare.outputs.publish == 'true'
-        env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-        run: |
-          ./scripts/notarize-macos-app.sh "dist/macos/osx-x64/Toastify Reloaded.app"
-          ./scripts/notarize-macos-app.sh "dist/macos/osx-arm64/Toastify Reloaded.app"
-
-      - name: Validate app bundles
+      - name: Verify original checksums and prepare the exact public macOS asset set
         if: steps.prepare.outputs.publish == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          X64_APP="dist/macos/osx-x64/Toastify Reloaded.app"
-          ARM_APP="dist/macos/osx-arm64/Toastify Reloaded.app"
-          for APP in "$X64_APP" "$ARM_APP"; do
-            plutil -lint "$APP/Contents/Info.plist"
-            codesign --verify --verbose=2 "$APP"
-          done
-          file "$X64_APP/Contents/MacOS/ToastifyReloaded.Mac" | grep -Eiq 'x86_64|x86-64'
-          file "$ARM_APP/Contents/MacOS/ToastifyReloaded.Mac" | grep -Eiq 'arm64|aarch64'
+          PACKAGE_VERSION="${RELEASE_TAG#v}"
+          PACKAGE_VERSION="${PACKAGE_VERSION/-macos/}"
+          python scripts/portable-release.py --platform macos --version "$PACKAGE_VERSION" --directory dist --verify-inputs --finalize --stage-directory dist/native-release
 
-      - name: Native macOS app startup smoke test
-        if: steps.prepare.outputs.publish == 'true'
-        run: ./scripts/test-macos-gui.sh
-
-      - name: Package release ZIP and DMG
-        if: steps.prepare.outputs.publish == 'true'
-        run: |
-          ./scripts/package-macos-zip.sh osx-x64
-          ./scripts/package-macos-zip.sh osx-arm64
-          ./scripts/package-macos-dmg.sh osx-x64
-          ./scripts/package-macos-dmg.sh osx-arm64
-
-      - name: Generate SHA-256 checksums
-        if: steps.prepare.outputs.publish == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          for ARTIFACT in \
-            dist/ToastifyReloaded-macOS-x64.zip \
-            dist/ToastifyReloaded-macOS-arm64.zip \
-            dist/ToastifyReloaded-macOS-x64.dmg \
-            dist/ToastifyReloaded-macOS-arm64.dmg; do
-            test -s "$ARTIFACT"
-          done
-          (
-            cd dist
-            shasum -a 256 \
-              ToastifyReloaded-macOS-x64.zip \
-              ToastifyReloaded-macOS-arm64.zip \
-              ToastifyReloaded-macOS-x64.dmg \
-              ToastifyReloaded-macOS-arm64.dmg \
-              > SHA256SUMS-macOS.txt
-          )
-          cat dist/SHA256SUMS-macOS.txt
-
-      - name: Publish GitHub release
+      - name: Upload verified macOS packages to a private draft
+        id: upload
         if: steps.prepare.outputs.publish == 'true'
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.prepare.outputs.release_tag }}
           target_commitish: ${{ steps.prepare.outputs.release_sha }}
-          body_path: ${{ steps.prepare.outputs.notes_path }}
           name: Toastify Reloaded ${{ steps.prepare.outputs.release_tag }}
-          prerelease: ${{ contains(steps.prepare.outputs.release_tag, '-preview.') || contains(steps.prepare.outputs.release_tag, '-rc.') }}
+          body_path: ${{ steps.prepare.outputs.notes_path }}
+          generate_release_notes: false
+          draft: true
           make_latest: false
+          prerelease: ${{ steps.prepare.outputs.prerelease == 'true' }}
           fail_on_unmatched_files: true
-          files: |
-            dist/ToastifyReloaded-macOS-x64.zip
-            dist/ToastifyReloaded-macOS-arm64.zip
-            dist/ToastifyReloaded-macOS-x64.dmg
-            dist/ToastifyReloaded-macOS-arm64.dmg
-            dist/SHA256SUMS-macOS.txt
+          files: dist/native-release/*
+
+      - name: Verify uploaded macOS feeds and publish the complete release
+        if: steps.prepare.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.prepare.outputs.release_tag }}
+          RELEASE_SOURCE_SHA: ${{ steps.prepare.outputs.release_sha }}
+          RELEASE_ID: ${{ steps.upload.outputs.id }}
+        run: python scripts/publish-portable-release.py --platform macos --directory dist/native-release --tag "$RELEASE_TAG" --source-sha "$RELEASE_SOURCE_SHA" --release-id "$RELEASE_ID"

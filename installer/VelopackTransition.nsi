@@ -64,12 +64,25 @@ Var RestartMinimized
 Var InstallMutex
 
 Function .onInit
+!if "${RUNTIME}" == "win-arm64"
+    ReadEnvStr $R0 "PROCESSOR_ARCHITEW6432"
+    ${If} $R0 != "ARM64"
+        ReadEnvStr $R0 "PROCESSOR_ARCHITECTURE"
+    ${EndIf}
+    ${If} $R0 != "ARM64"
+        MessageBox MB_OK|MB_ICONSTOP "Questo pacchetto richiede Windows ARM64. Su PC Intel o AMD scarica ToastifyReloaded-Setup-win-x64.exe."
+        SetErrorLevel 1633
+        Abort
+    ${EndIf}
+!endif
     System::Call 'kernel32::CreateMutexW(p 0, i 0, w "Global\ToastifyReloaded.PackageTransition") p .r0 ?e'
     Pop $1
     StrCpy $InstallMutex $0
     ${If} $0 == 0
     ${OrIf} $1 == 183
-        Abort "Un altro aggiornamento di Toastify Reloaded e gia in corso."
+        MessageBox MB_OK|MB_ICONSTOP "Un altro aggiornamento di Toastify Reloaded e gia in corso, oppure Windows non consente di verificarlo. Chiudi l'altro installer e riprova."
+        SetErrorLevel 1618
+        Abort
     ${EndIf}
     SetRegView 64
     ReadRegStr $R2 HKLM "${APP_KEY}" "InstallDir"
@@ -82,9 +95,17 @@ Function .onInit
     ${GetParameters} $R0
     ${GetOptions} $R0 "/UPDATEPID=" $UpdatePid
     ${GetOptions} $R0 "/RESTARTMINIMIZED=" $RestartMinimized
+    ${If} ${Errors}
+        ; GetOptions clears its output when the option is absent. Restore the
+        ; manual-launch default before validating; otherwise .onInit exits.
+        StrCpy $RestartMinimized "0"
+        ClearErrors
+    ${EndIf}
     ${If} $RestartMinimized != "0"
     ${AndIf} $RestartMinimized != "1"
-        Abort "Opzione di riavvio non valida."
+        MessageBox MB_OK|MB_ICONSTOP "Opzione di riavvio non valida. Avvia il setup senza opzioni aggiuntive."
+        SetErrorLevel 87
+        Abort
     ${EndIf}
     ${If} $UpdatePid != ""
         StrCpy $IsUpdate "1"
@@ -182,6 +203,7 @@ Section "${APP_NAME}"
     ${If} $0 == 10
         SetAutoClose false
         DetailPrint "Installazione completata. Riapri Toastify Reloaded dal menu Start."
+        MessageBox MB_OK|MB_ICONINFORMATION "Installazione completata. L'avvio automatico non e riuscito: apri Toastify Reloaded dal menu Start. Le impostazioni sono state conservate."
     ${ElseIf} $0 != 0
         SetErrorLevel 1
         Abort "Aggiornamento non completato. Consulta i dettagli; le impostazioni non sono state rimosse."

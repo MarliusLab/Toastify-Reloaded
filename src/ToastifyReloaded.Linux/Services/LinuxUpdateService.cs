@@ -7,7 +7,7 @@ namespace ToastifyReloaded.Linux.Services;
 
 public sealed partial class LinuxUpdateService
 {
-    public const string CurrentTag = "v1.4.1-linux";
+    public const string CurrentTag = "v1.4.2-linux";
 
     public static readonly LinuxReleaseVersion CurrentVersion =
         ParseTag(CurrentTag)
@@ -19,17 +19,17 @@ public sealed partial class LinuxUpdateService
 
     private readonly HttpClient _http;
 
-    public LinuxUpdateService()
+    public LinuxUpdateService(HttpClient? http = null)
     {
-        _http = new HttpClient
+        _http = http ?? new HttpClient
         {
-            Timeout = TimeSpan.FromSeconds(15)
+            Timeout = TimeSpan.FromSeconds(25)
         };
 
         _http.DefaultRequestHeaders.UserAgent.Add(
             new ProductInfoHeaderValue(
                 "ToastifyReloaded",
-                "1.4.1"));
+                "1.4.2"));
 
         _http.DefaultRequestHeaders.Accept.Add(
             new MediaTypeWithQualityHeaderValue(
@@ -43,20 +43,13 @@ public sealed partial class LinuxUpdateService
     public async Task<LinuxUpdateInfo?> CheckAsync(
         CancellationToken cancellationToken = default)
     {
-        using var response = await _http.GetAsync(
-            ReleasesApi,
-            cancellationToken);
-
-        response.EnsureSuccessStatusCode();
-
-        await using var stream =
-            await response.Content.ReadAsStreamAsync(
-                cancellationToken);
-
-        using var document =
-            await JsonDocument.ParseAsync(
-                stream,
-                cancellationToken: cancellationToken);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(25));
+        using var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, deadline.Token);
+        var operationToken = operation.Token;
+        var metadata = new ToastifyReloaded.Shared.PortableHttpDownloader(_http);
+        using var scope = metadata.BeginOperation(operationToken);
+        var payload = await metadata.DownloadBytes(ReleasesApi.AbsoluteUri);
+        using var document = JsonDocument.Parse(payload);
 
         LinuxUpdateInfo? best = null;
 
@@ -102,7 +95,10 @@ public sealed partial class LinuxUpdateService
                 continue;
             }
 
-            var assets = ParseAssets(release);
+            if (release.TryGetProperty("prerelease", out var prerelease) &&
+                prerelease.GetBoolean() != (version.Stage != LinuxReleaseStage.Stable))
+                continue;
+            var assets = ParseAssets(release, tag);
 
             var candidate = new LinuxUpdateInfo(
                 version,
@@ -193,7 +189,7 @@ public sealed partial class LinuxUpdateService
     }
 
     private static IReadOnlyList<LinuxUpdateAsset> ParseAssets(
-        JsonElement release)
+        JsonElement release, string tag)
     {
         var assets = new List<LinuxUpdateAsset>();
 
@@ -239,6 +235,11 @@ public sealed partial class LinuxUpdateService
             {
                 continue;
             }
+
+            if (size <= 0 || !ToastifyReloaded.Shared.SafeUpdateDownloader.IsTrustedAssetUri(downloadUri, tag, name))
+                continue;
+            try { _ = ToastifyReloaded.Shared.SafeUpdateDownloader.ParseDigest(digest); }
+            catch (InvalidDataException) { continue; }
 
             assets.Add(
                 new LinuxUpdateAsset(

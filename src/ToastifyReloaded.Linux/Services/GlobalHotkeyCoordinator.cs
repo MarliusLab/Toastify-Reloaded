@@ -28,6 +28,11 @@ public sealed class GlobalHotkeyCoordinator : IDisposable
 
     public bool IsWayland => _wayland.IsWayland;
 
+    public Task<(bool Success, string Message)> SetToastNavigationScopeAsync(bool active)
+        => IsWayland
+            ? Task.FromResult((true, active ? "Wayland: Alt+Shift+J disponibile nel toast con focus; la scorciatoia globale Show Toast conserva l'azione Lyrics Plus alla seconda pressione." : string.Empty))
+            : _x11.SetToastNavigationScopeAsync(active);
+
     public async Task<(bool Success, string Message)> ApplyAsync(
         LinuxSettings settings)
     {

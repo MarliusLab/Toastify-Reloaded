@@ -104,6 +104,7 @@ public static class MacSelfTestService
                 ToastMarginX = 31,
                 ToastMarginY = 42,
                 EnableGlobalHotkeys = true,
+                HotkeyShowToast = "Ctrl+Alt+F9",
                 AutoInstallMacUpdates = true
             };
 
@@ -133,6 +134,12 @@ public static class MacSelfTestService
                   reloaded.ToastPosition == "TopLeft" &&
                   reloaded.AutoInstallMacUpdates,
                 "settings save/load roundtrip");
+            Check(reloaded.HotkeyShowToast == "Ctrl+Alt+F9" &&
+                  importedLegacyShowShortcut() == "Ctrl+Alt+T",
+                "Show Toast shortcut preserves saved assignments and adds a default for legacy settings");
+
+            static string importedLegacyShowShortcut()
+                => System.Text.Json.JsonSerializer.Deserialize<MacSettings>("{\"HotkeyNext\":\"Ctrl+Right\"}")!.HotkeyShowToast;
 
             await using var exportStream = new MemoryStream();
             await settingsService.ExportAsync(exportStream, reloaded);

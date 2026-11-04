@@ -4,6 +4,8 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Platform;
+using Avalonia.Input;
+using ToastifyReloaded.Shared;
 using ToastifyReloaded.Mac.Models;
 using ToastifyReloaded.Mac.Services;
 
@@ -15,23 +17,52 @@ public partial class ToastWindow : Window
     private readonly MacSettings _settings;
     private readonly ArtworkService _artworkService;
     private readonly SpotifyTrackOpenService _trackOpenService = new(new ProcessService());
+    private readonly ToastNavigationGate _navigation;
+    private readonly Func<CancellationToken, Task<SpotifyTrackOpenResult>> _nowPlaying;
+    private readonly CancellationTokenSource _lifetime;
+    private bool _closed;
+    private bool _fading;
+    private bool _dragging;
     private bool _openingTrack;
+    private Key? _pendingLyricsKey;
+    private bool _pendingNowPlayingKey;
     private string? _openStatus;
     private DateTime _statusUntil;
 
     public ToastWindow(
         MacTrackInfo track,
         MacSettings settings,
-        ArtworkService artworkService)
+        ArtworkService artworkService,
+        ToastNavigationGate? navigation = null,
+        Func<CancellationToken, Task<SpotifyTrackOpenResult>>? nowPlaying = null,
+        CancellationToken lifetimeCancellationToken = default)
     {
         InitializeComponent();
         _track = track;
         _settings = settings;
         _artworkService = artworkService;
+        _navigation = navigation ?? new ToastNavigationGate();
+        _nowPlaying = nowPlaying ?? _trackOpenService.OpenNowPlayingAsync;
+        _lifetime = CancellationTokenSource.CreateLinkedTokenSource(lifetimeCancellationToken);
+        Closed += (_, _) => { _closed = true; _lifetime.Cancel(); };
+        RootBorder.AddHandler(PointerReleasedEvent, OnSurfaceReleased, RoutingStrategies.Bubble, handledEventsToo: true);
+        RootBorder.AddHandler(PointerPressedEvent, OnSurfacePressed, RoutingStrategies.Tunnel);
+        AddHandler(KeyDownEvent, OnToastKeyDown, RoutingStrategies.Tunnel);
+        AddHandler(KeyUpEvent, OnToastKeyUp, RoutingStrategies.Tunnel);
+        Deactivated += (_, _) => { _pendingLyricsKey = null; _pendingNowPlayingKey = false; };
     }
+
+    internal bool CanHandleLyricsPlusRequest => IsVisible && !_closed;
+    internal Task RequestLyricsPlusAsync()
+        => !CanHandleLyricsPlusRequest || _fading ? Task.CompletedTask : NavigateAsync(lyrics: true);
+    internal Task RequestNowPlayingAsync()
+        => !CanHandleLyricsPlusRequest || _fading ? Task.CompletedTask : NavigateAsync(lyrics: false);
 
     public async Task ShowToastAsync()
     {
+        try
+        {
+        _lifetime.Token.ThrowIfCancellationRequested();
         ApplyThemeAndTypography();
         ApplyContent();
         ApplyWidth();
@@ -46,6 +77,8 @@ public partial class ToastWindow : Window
                 useAlbum ? _track.ArtworkUrl : string.Empty,
                 _settings.IconFallback || !useAlbum);
         }
+
+        _lifetime.Token.ThrowIfCancellationRequested();
 
         ProgressBar.IsVisible =
             _settings.ShowProgress &&
@@ -67,8 +100,8 @@ public partial class ToastWindow : Window
         var started = DateTime.UtcNow;
         var initialPosition = _track.PositionSeconds;
 
-        while ((DateTime.UtcNow - started).TotalMilliseconds <
-               _settings.ToastDisplayMs || _openingTrack || DateTime.UtcNow < _statusUntil)
+        while (!_closed && ((DateTime.UtcNow - started).TotalMilliseconds <
+               _settings.ToastDisplayMs || _openingTrack || DateTime.UtcNow < _statusUntil))
         {
             var elapsed = _track.IsPlaying
                 ? (DateTime.UtcNow - started).TotalSeconds
@@ -79,11 +112,18 @@ public partial class ToastWindow : Window
                 Math.Max(0, initialPosition + elapsed));
 
             UpdateTimeline(current);
-            await Task.Delay(250);
+            await Task.Delay(250, _lifetime.Token);
         }
 
+        _fading = true;
         await AnimateOutAsync(screen);
-        Close();
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
+        finally
+        {
+            if (!_closed) Close();
+            _lifetime.Dispose();
+        }
     }
 
     private void ApplyContent()
@@ -96,7 +136,7 @@ public partial class ToastWindow : Window
             ? _track.Album
             : _track.Artist;
 
-        var label = new LocalizationService().Get("OpenTrack", _settings.Language);
+        var label = new LocalizationService().Get("OpenLyricsPlus", _settings.Language);
         AutomationProperties.SetName(TitleLink, $"{label}: {TitleText.Text}");
         AutomationProperties.SetName(ArtistLink, $"{label}: {ArtistText.Text}");
         ToolTip.SetTip(TitleLink, label);
@@ -106,27 +146,106 @@ public partial class ToastWindow : Window
     private async void OnTrackLinkClick(object? sender, RoutedEventArgs e)
     {
         e.Handled = true;
-        if (_openingTrack)
-            return;
+        if (_dragging) return;
+        await NavigateAsync(lyrics: true);
+    }
 
+    private async Task NavigateAsync(bool lyrics)
+    {
+        if (_openingTrack || _closed || _fading) return;
         _openingTrack = true;
         TitleLink.IsEnabled = ArtistLink.IsEnabled = false;
         try
         {
-            // The immutable toast snapshot owns the identifier. A delayed click
-            // must not resolve a newer song from Spotify or guess by title.
-            var result = await _trackOpenService.OpenAsync(_track.TrackUri);
+            await _navigation.RunAsync(async () =>
+            {
+            var result = lyrics
+                ? await _trackOpenService.OpenLyricsPlusAsync(_lifetime.Token)
+                : await _nowPlaying(_lifetime.Token);
+            if (_closed) return;
             _openStatus = new LocalizationService().Get(result.Message, _settings.Language);
             ToolTip.SetTip(TitleLink, _openStatus);
             ToolTip.SetTip(ArtistLink, _openStatus);
             TimeText.IsVisible = true;
             TimeText.Text = _openStatus;
             _statusUntil = DateTime.UtcNow.AddSeconds(2);
+            });
+        }
+        catch (OperationCanceledException) when (_closed || _lifetime.IsCancellationRequested) { }
+        catch
+        {
+            if (!_closed)
+            {
+                _openStatus = new LocalizationService().Get(lyrics ? "LyricsPlusOpenFailed" : "NowPlayingFailed", _settings.Language);
+                ToolTip.SetTip(TitleLink, _openStatus);
+                ToolTip.SetTip(ArtistLink, _openStatus);
+                TimeText.IsVisible = true;
+                TimeText.Text = _openStatus;
+                _statusUntil = DateTime.UtcNow.AddSeconds(2);
+            }
         }
         finally
         {
             _openingTrack = false;
-            TitleLink.IsEnabled = ArtistLink.IsEnabled = true;
+            if (!_closed) TitleLink.IsEnabled = ArtistLink.IsEnabled = true;
+        }
+    }
+
+    private void OnSurfacePressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            e.Handled = true;
+            _dragging = true;
+            BeginMoveDrag(e);
+        }
+    }
+
+    private async void OnSurfaceReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (_dragging) { _dragging = false; e.Handled = true; return; }
+        if (e.Handled || e.InitialPressMouseButton != MouseButton.Left || e.KeyModifiers.HasFlag(KeyModifiers.Control)) return;
+        // Buttons own their Click routing; the remaining surface opens lyrics.
+        if (e.Source is Control control && IsTextLink(control)) return;
+        e.Handled = true;
+        await NavigateAsync(lyrics: true);
+    }
+
+    private bool IsTextLink(Control control)
+    {
+        for (Control? current = control; current is not null; current = current.Parent as Control)
+            if (current == TitleLink || current == ArtistLink) return true;
+        return false;
+    }
+
+    private void OnToastKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key is Key.Enter or Key.Space && e.KeyModifiers == KeyModifiers.None &&
+            e.Source is Control control && IsTextLink(control))
+        {
+            e.Handled = true;
+            _pendingLyricsKey ??= e.Key;
+        }
+        else if (e.Key == Key.J && e.KeyModifiers == (KeyModifiers.Alt | KeyModifiers.Shift))
+        {
+            e.Handled = true;
+            _pendingNowPlayingKey = true;
+        }
+    }
+
+    private async void OnToastKeyUp(object? sender, KeyEventArgs e)
+    {
+        if (_pendingLyricsKey == e.Key)
+        {
+            _pendingLyricsKey = null;
+            e.Handled = true;
+            await RequestLyricsPlusAsync();
+        }
+        else if (_pendingNowPlayingKey && e.Key == Key.J)
+        {
+            _pendingNowPlayingKey = false;
+            e.Handled = true;
+            await RequestNowPlayingAsync();
         }
     }
 
@@ -262,6 +381,7 @@ public partial class ToastWindow : Window
 
         for (var i = 0; i <= steps; i++)
         {
+            if (_closed || _lifetime.IsCancellationRequested) return;
             var t = (double)i / steps;
 
             Opacity = _settings.AnimationStyle == "None"
@@ -286,7 +406,7 @@ public partial class ToastWindow : Window
         var duration = Math.Max(0, _settings.FadeOutMs);
         var steps = Math.Max(1, duration / 16);
 
-        var startPosition = GetFinalPosition(screen);
+        var startPosition = Position;
         var endPosition = OffsetPosition(
             startPosition,
             _settings.SlideOutDirection,
@@ -298,6 +418,7 @@ public partial class ToastWindow : Window
 
         for (var i = 0; i <= steps; i++)
         {
+            if (_closed || _lifetime.IsCancellationRequested) return;
             var t = (double)i / steps;
 
             Opacity = _settings.AnimationStyle == "None"

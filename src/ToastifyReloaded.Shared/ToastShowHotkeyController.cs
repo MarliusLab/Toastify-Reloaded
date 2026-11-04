@@ -1,7 +1,7 @@
-namespace ToastifyReloaded.Services;
+namespace ToastifyReloaded.Shared;
 
 /// <summary>Only the configured Show Toast hotkey gains the visible-toast second action.</summary>
-internal sealed class ToastShowHotkeyController : IDisposable
+public sealed class ToastShowHotkeyController : IDisposable
 {
     private readonly List<Lease> _toasts = new();
     private bool _executing;

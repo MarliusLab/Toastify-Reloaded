@@ -23,8 +23,14 @@ jobs:
         shell: pwsh
         run: .\scripts\verify-classic-ui.ps1
 
+      - name: Verify permanent three-platform parity policy
+        run: python scripts/verify-platform-parity.py
+
       - name: Test release authorization and immutable tags
         run: python scripts/test-prepare-release.py
+
+      - name: Test native package feeds and immutable publication
+        run: python scripts/test-portable-release.py
 
       - name: Test versioned package feeds and immutable delta bases
         run: python scripts/test-velopack-release.py
@@ -47,6 +53,10 @@ jobs:
 
       - name: Install pinned Velopack CLI
         run: dotnet tool install vpk --version 1.2.161 --tool-path .tools/vpk
+
+      - name: Test actual manual installer argument parsing without installing
+        shell: pwsh
+        run: .\scripts\test-windows-installer-arguments.ps1
 
       - name: Test migration and rollback without installing
         shell: pwsh

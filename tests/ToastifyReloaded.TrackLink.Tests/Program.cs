@@ -2,6 +2,8 @@ using ToastifyReloaded.Shared;
 using Linux = ToastifyReloaded.Linux.Services;
 using Mac = ToastifyReloaded.Mac.Services;
 
+if (await CrossMaintenanceTests.TryRunChildAsync(args)) return;
+
 const string id = "4uLU6hMCjMI75M1A2tKUQC";
 const string uri = "spotify:track:" + id;
 var passed = 0;
@@ -178,4 +180,7 @@ Reset(1, 1, 1);
 Check(!(await macOpener.OpenAsync(uri)).Success && calls.Count == 3, "Mac reports exhausted fallback chain");
 var macException = new Mac.SpotifyTrackOpenService((_, _, _) => throw new OperationCanceledException());
 Check(!(await macException.OpenAsync(uri)).Success, "Mac canceled launcher is crash-safe");
+await LinuxLyricsTests.RunAsync(Check);
+await MacLyricsTests.RunAsync(Check);
+await CrossMaintenanceTests.RunAsync(Check);
 Console.WriteLine($"TRACK LINK TEST RESULT: PASS ({passed})");

@@ -146,6 +146,14 @@ try {
     # registry API, shortcut modification or user token is used by this suite.
     Add-Type -Path (Join-Path $PSScriptRoot 'WindowsDesktopUserLauncher.cs')
     Check ($null -ne ('ToastifyPackaging.DesktopUserLauncher' -as [type])) 'desktop-token launcher compiles'
+    $diagnostic = ''
+    Check (-not [ToastifyPackaging.DesktopUserLauncher]::TryStart((Join-Path $testRoot 'missing\ToastifyReloaded.exe'), $false, [ref]$diagnostic) -and
+        $diagnostic -match 'ValidateExecutable') 'missing executable produces a specific diagnostic before any user token or launch API'
+    Check (-not [ToastifyPackaging.DesktopUserLauncher]::TryStart('ToastifyReloaded.exe', $false, [ref]$diagnostic) -and
+        $diagnostic -match 'ValidateExecutable') 'relative executable never reaches native launch'
+    $tokenLaunch = ('ToastifyPackaging.DesktopUserLauncher' -as [type]).GetMethod('CreateProcessWithTokenW', [Reflection.BindingFlags]'Static,NonPublic')
+    $nativeAttribute = @($tokenLaunch.GetCustomAttributes([Runtime.InteropServices.DllImportAttribute], $false))[0]
+    Check ($nativeAttribute.SetLastError) 'native launch preserves Win32 errors for installer diagnostics'
     $module = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'WindowsPackageMigration.psm1'))
     Check ($module -notmatch 'HKEY_CURRENT_USER|Registry::HKEY_CURRENT_USER|Set-ItemProperty.+HKCU|OpenBaseKey\(''CurrentUser''') 'elevated migration never writes another user startup choice'
     $wrapper = [IO.File]::ReadAllText((Join-Path $repo 'installer\VelopackTransition.nsi'))

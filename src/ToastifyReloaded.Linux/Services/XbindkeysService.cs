@@ -9,6 +9,9 @@ public sealed class XbindkeysService : IDisposable
     private readonly ProcessService _processService;
     private readonly LinuxSettingsService _settingsService;
     private Process? _process;
+    private readonly SemaphoreSlim _configuration = new(1, 1);
+    private LinuxSettings? _settings;
+    private bool _toastNavigationActive, _disposed;
 
     public XbindkeysService(
         ProcessService processService,
@@ -26,7 +29,25 @@ public sealed class XbindkeysService : IDisposable
 
     public async Task<(bool Success, string Message)> ApplyAsync(LinuxSettings settings)
     {
-        Stop();
+        _settings = settings;
+        return await ApplyCurrentAsync();
+    }
+
+    public Task<(bool Success, string Message)> SetToastNavigationScopeAsync(bool active)
+    {
+        if (_toastNavigationActive == active || _settings is null)
+        { _toastNavigationActive = active; return Task.FromResult((true, string.Empty)); }
+        _toastNavigationActive = active;
+        return ApplyCurrentAsync();
+    }
+
+    private async Task<(bool Success, string Message)> ApplyCurrentAsync()
+    {
+        await _configuration.WaitAsync();
+        try
+        {
+        if (_disposed || _settings is not { } settings) return (false, "Hotkey chiuse.");
+        await Task.Run(Stop);
 
         if (!settings.EnableX11GlobalHotkeys)
             return (true, "Hotkey globali disattivate.");
@@ -48,8 +69,10 @@ public sealed class XbindkeysService : IDisposable
 
         await File.WriteAllTextAsync(
             configPath,
-            BuildConfig(settings),
+            BuildConfig(settings, _toastNavigationActive),
             Encoding.UTF8);
+
+        if (_disposed) return (false, "Hotkey chiuse.");
 
         var startInfo = new ProcessStartInfo
         {
@@ -64,10 +87,31 @@ public sealed class XbindkeysService : IDisposable
         startInfo.ArgumentList.Add(configPath);
 
         _process = Process.Start(startInfo);
+        var nativeError = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        if (_process is not null)
+        {
+            // Drain redirected streams without allowing native diagnostic output
+            // to block the owned xbindkeys process.
+            _process.OutputDataReceived += (_, _) => { };
+            _process.ErrorDataReceived += (_, e) =>
+            { if (!string.IsNullOrWhiteSpace(e.Data)) nativeError.TrySetResult(e.Data[..Math.Min(e.Data.Length, 512)]); };
+            _process.BeginOutputReadLine();
+            _process.BeginErrorReadLine();
+            await Task.WhenAny(nativeError.Task, Task.Delay(150));
+            if (_disposed) { Stop(); return (false, "Hotkey chiuse."); }
+            if (nativeError.Task.IsCompletedSuccessfully)
+                return (false, "X11: impossibile confermare tutte le scorciatoie (possibile conflitto): " + nativeError.Task.Result);
+            if (_process is null || _process.HasExited)
+                return (false, "xbindkeys si è chiuso; verifica il server X11 e le scorciatoie già occupate.");
+        }
 
         return _process is not null
-            ? (true, "Hotkey globali X11 attive.")
+            ? (true, _toastNavigationActive
+                ? "Hotkey X11 attive; Alt+Shift+J temporaneo richiesto al server X11 mentre il toast è visibile."
+                : "Hotkey globali X11 attive.")
             : (false, "Impossibile avviare xbindkeys.");
+        }
+        finally { _configuration.Release(); }
     }
 
     public void Stop()
@@ -75,7 +119,10 @@ public sealed class XbindkeysService : IDisposable
         try
         {
             if (_process is { HasExited: false })
+            {
                 _process.Kill(entireProcessTree: true);
+                _process.WaitForExit(1500);
+            }
         }
         catch
         {
@@ -88,7 +135,7 @@ public sealed class XbindkeysService : IDisposable
         }
     }
 
-    private static string BuildConfig(LinuxSettings s)
+    internal static string BuildConfig(LinuxSettings s, bool toastNavigationActive = false)
     {
         var entries = new[]
         {
@@ -99,7 +146,8 @@ public sealed class XbindkeysService : IDisposable
             (s.HotkeyVolumeDown, "playerctl --player=spotify volume 0.05-"),
             (s.HotkeyMute, "playerctl --player=spotify volume 0"),
             (s.HotkeySeekForward, "playerctl --player=spotify position 10+"),
-            (s.HotkeySeekBackward, "playerctl --player=spotify position 10-")
+            (s.HotkeySeekBackward, "playerctl --player=spotify position 10-"),
+            (s.HotkeyShowToast, "gdbus call --session --dest io.github.MarliusLab.ToastifyReloaded --object-path /io/github/MarliusLab/ToastifyReloaded --method io.github.MarliusLab.ToastifyReloaded.Control.ShowToast")
         };
 
         var builder = new StringBuilder();
@@ -108,12 +156,23 @@ public sealed class XbindkeysService : IDisposable
 
         foreach (var (shortcut, command) in entries)
         {
-            if (string.IsNullOrWhiteSpace(shortcut))
+            // The overlay never edits saved settings. Rebuilding after the last
+            // visible lease restores any original matching assignment verbatim.
+            if (toastNavigationActive && ToastKeyboardNavigation.IsCurrentTrackChord(shortcut)) continue;
+            if (string.IsNullOrWhiteSpace(shortcut) || shortcut.Any(char.IsControl) || shortcut.Contains('"') || shortcut.Contains('\\'))
                 continue;
 
             builder.Append('"').Append(command).AppendLine("\"");
-            builder.Append("  ").AppendLine(ToXbindkeys(shortcut));
+            builder.Append("  ");
+            if (command.StartsWith("gdbus call", StringComparison.Ordinal)) builder.Append("Release + ");
+            builder.AppendLine(ToXbindkeys(shortcut));
             builder.AppendLine();
+        }
+
+        if (toastNavigationActive)
+        {
+            builder.AppendLine("\"gdbus call --session --dest io.github.MarliusLab.ToastifyReloaded --object-path /io/github/MarliusLab/ToastifyReloaded --method io.github.MarliusLab.ToastifyReloaded.Control.OpenCurrentTrack\"");
+            builder.AppendLine("  Release + Alt+Shift + j");
         }
 
         return builder.ToString();
@@ -149,7 +208,7 @@ public sealed class XbindkeysService : IDisposable
             "left" => "Left",
             "up" => "Up",
             "down" => "Down",
-            _ => key
+            _ => key.Length == 1 ? key.ToLowerInvariant() : key
         };
 
         return modifiers.Count == 0
@@ -157,6 +216,5 @@ public sealed class XbindkeysService : IDisposable
             : string.Join('+', modifiers) + " + " + mappedKey;
     }
 
-    public void Dispose()
-        => Stop();
+    public void Dispose() { _disposed = true; Stop(); }
 }

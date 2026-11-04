@@ -38,14 +38,30 @@ if [[ "$IMAGE_MB" -lt 128 ]]; then IMAGE_MB=128; fi
 echo "DMG payload: ${PAYLOAD_KB} KiB; image capacity: ${IMAGE_MB} MiB"
 /bin/df -Pk "$ROOT/dist" "${TMPDIR:-/tmp}"
 
-/usr/bin/hdiutil create \
-  -volname "Toastify Reloaded" \
-  -srcfolder "$STAGE" \
-  -ov \
-  -format UDZO \
-  -fs HFS+ \
-  -size "${IMAGE_MB}m" \
-  "$OUT" >/dev/null
+CREATE_LOG="$ROOT/dist/macos/$RID/hdiutil-create.log"
+CREATED=false
+for attempt in 1 2 3; do
+  if /usr/bin/hdiutil create \
+    -volname "Toastify Reloaded" \
+    -srcfolder "$STAGE" \
+    -ov \
+    -format UDZO \
+    -fs HFS+ \
+    -size "${IMAGE_MB}m" \
+    "$OUT" >"$CREATE_LOG" 2>&1; then
+    CREATED=true
+    break
+  fi
+  cat "$CREATE_LOG" >&2
+  # The diskimages service occasionally retains a transient busy resource.
+  # Do not retry invalid input, space, signing or other deterministic failures.
+  /usr/bin/grep -Fiq 'Resource busy' "$CREATE_LOG" || exit 1
+  [[ "$attempt" -lt 3 ]] || break
+  echo "hdiutil resource busy; retrying create ($attempt/3)" >&2
+  rm -f "$OUT"
+  sleep $((attempt * 2))
+done
+[[ "$CREATED" == true ]] || { echo "DMG creation still busy after three attempts." >&2; exit 1; }
 
 /usr/bin/hdiutil verify "$OUT" >/dev/null
 echo "Created: $OUT"

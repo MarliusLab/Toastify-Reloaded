@@ -10,15 +10,17 @@ public sealed class XdgGlobalShortcutsService : IDisposable
         new("/org/freedesktop/portal/desktop");
 
     private readonly PlayerctlService _playerctl;
+    private readonly Func<Task> _showToast;
 
     private Connection? _connection;
     private IDisposable? _activatedSubscription;
+    private IDisposable? _deactivatedSubscription;
     private IPortalSession? _session;
     private ObjectPath _sessionPath;
     private bool _hasSession;
 
-    public XdgGlobalShortcutsService(PlayerctlService playerctl)
-        => _playerctl = playerctl;
+    public XdgGlobalShortcutsService(PlayerctlService playerctl, Func<Task>? showToast = null)
+    { _playerctl = playerctl; _showToast = showToast ?? (() => Task.CompletedTask); }
 
     public bool IsWayland =>
         string.Equals(
@@ -87,7 +89,9 @@ public sealed class XdgGlobalShortcutsService : IDisposable
                 _sessionPath);
 
             _activatedSubscription = await portal.WatchActivatedAsync(
-                args => _ = HandleActivatedAsync(args.ShortcutId));
+                args => { if (args.SessionHandle.Equals(_sessionPath)) _ = HandleActivatedAsync(args.ShortcutId); });
+            _deactivatedSubscription = await portal.WatchDeactivatedAsync(
+                args => { if (args.SessionHandle.Equals(_sessionPath) && args.ShortcutId == "show-toast") _ = _showToast(); });
 
             var shortcuts = BuildShortcuts(settings);
             var bindHandle = await portal.BindShortcutsAsync(
@@ -126,6 +130,8 @@ public sealed class XdgGlobalShortcutsService : IDisposable
     {
         _activatedSubscription?.Dispose();
         _activatedSubscription = null;
+        _deactivatedSubscription?.Dispose();
+        _deactivatedSubscription = null;
 
         if (_hasSession && _session is not null)
         {
@@ -162,6 +168,7 @@ public sealed class XdgGlobalShortcutsService : IDisposable
     {
         switch (shortcutId)
         {
+            case "show-toast": break; // Open/focus only on portal Deactivated, after the launching chord releases.
             case "play-pause":
                 await _playerctl.PlayPauseAsync();
                 break;
@@ -225,7 +232,8 @@ public sealed class XdgGlobalShortcutsService : IDisposable
             Shortcut("volume-down", "Diminuisci volume", settings.HotkeyVolumeDown),
             Shortcut("mute", "Mute / ripristina volume", settings.HotkeyMute),
             Shortcut("seek-forward", "Avanti 10 secondi", settings.HotkeySeekForward),
-            Shortcut("seek-backward", "Indietro 10 secondi", settings.HotkeySeekBackward)
+            Shortcut("seek-backward", "Indietro 10 secondi", settings.HotkeySeekBackward),
+            Shortcut("show-toast", "Show Toast / Lyrics Plus", settings.HotkeyShowToast)
         };
 
     private static (string, IDictionary<string, object>) Shortcut(
@@ -344,6 +352,11 @@ public sealed class XdgGlobalShortcutsService : IDisposable
             Action<(ObjectPath SessionHandle,
                     string ShortcutId,
                     ulong Timestamp,
+                    IDictionary<string, object> Options)> handler,
+            Action<Exception>? onError = null);
+
+        Task<IDisposable> WatchDeactivatedAsync(
+            Action<(ObjectPath SessionHandle, string ShortcutId, ulong Timestamp,
                     IDictionary<string, object> Options)> handler,
             Action<Exception>? onError = null);
     }

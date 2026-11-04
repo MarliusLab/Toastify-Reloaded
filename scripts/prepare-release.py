@@ -18,6 +18,11 @@ PLATFORMS = {
     "linux": ("ToastifyReloaded.Linux", "LinuxUpdateService.cs", "Linux Build"),
     "macos": ("ToastifyReloaded.Mac", "MacUpdateService.cs", "macOS Build"),
 }
+BUILD_WORKFLOWS = {
+    "windows": ("build", ".github/workflows/build.yml"),
+    "linux": ("Linux Build", ".github/workflows/linux-build.yml"),
+    "macos": ("macOS Build", ".github/workflows/macos-build.yml"),
+}
 
 
 def validate_plan(root, platform):
@@ -37,10 +42,13 @@ def validate_plan(root, platform):
     version = project_tree.findtext("./PropertyGroup/Version")
     if version != match.group(1):
         raise ValueError("Release tag does not match assembly version")
-    if platform == "windows" and windows_version(tag) >= FIRST_VELOPACK_VERSION:
+    native = (platform == "windows" and windows_version(tag) >= FIRST_VELOPACK_VERSION or
+              platform == "linux" and tuple(map(int, match.group(1).split("."))) >= (1, 4, 2) or
+              platform == "macos" and mac_native_tag(tag))
+    if native:
         references = project_tree.findall("./ItemGroup/PackageReference[@Include='Velopack']")
         if len(references) != 1 or references[0].get("Version") != VPK_VERSION:
-            raise ValueError("Windows release requires the pinned Velopack SDK " + VPK_VERSION)
+            raise ValueError("Native release requires the pinned Velopack SDK " + VPK_VERSION)
     if service:
         source = (folder / "Services" / service).read_text(encoding="utf-8-sig")
         current = re.search(r'public const string CurrentTag = "([^"]+)";', source)
@@ -63,7 +71,7 @@ def validate_event(platform, event_name, event, repository, ref_name, checked_sh
         head_repo = run.get("head_repository") or {}
         if (run.get("conclusion") != "success" or run.get("status") != "completed"
                 or run.get("event") != "push" or run.get("head_branch") != "main"
-                or run.get("name") != PLATFORMS[platform][2]
+                or (run.get("name"), run.get("path")) not in BUILD_WORKFLOWS.values()
                 or head_repo.get("full_name") != repository
                 or event.get("repository", {}).get("full_name") != repository
                 or run.get("head_sha") != checked_sha):
@@ -77,15 +85,69 @@ def validate_event(platform, event_name, event, repository, ref_name, checked_sh
         raise ValueError("Unsupported publication event")
 
 
+def trusted_builds(repository, checked_sha, api):
+    """Only the newest trusted main push for each OS can satisfy the joint gate."""
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository) or not re.fullmatch(r"[0-9a-f]{40}", checked_sha):
+        raise ValueError("Invalid build provenance request")
+    newest = {}
+    for page in range(1, 4):
+        response = api(f"repos/{repository}/actions/runs?head_sha={checked_sha}&event=push&branch=main&per_page=100&page={page}") or {}
+        runs = response.get("workflow_runs", [])
+        if not isinstance(runs, list): raise ValueError("Invalid workflow run collection")
+        for run in runs:
+            if (run.get("head_sha") != checked_sha or run.get("event") != "push" or run.get("head_branch") != "main" or
+                    (run.get("repository") or {}).get("full_name") != repository or
+                    (run.get("head_repository") or {}).get("full_name") != repository or
+                    type(run.get("id")) is not int or run["id"] <= 0):
+                continue
+            for platform, (name, path) in BUILD_WORKFLOWS.items():
+                if run.get("name") == name and run.get("path") == path:
+                    if platform not in newest or run["id"] > newest[platform]["id"]:
+                        newest[platform] = run
+        if len(runs) < 100: break
+    result = {platform + "_build_run": str(newest[platform]["id"]) if platform in newest else ""
+              for platform in BUILD_WORKFLOWS}
+    missing = [platform for platform in BUILD_WORKFLOWS if platform not in newest or
+               newest[platform].get("status") != "completed" or newest[platform].get("conclusion") != "success"]
+    result["ready"] = not missing
+    result["build_gate"] = "all_three_main_builds_passed" if not missing else "waiting_for_successful_main_builds:" + ",".join(missing)
+    return result
+
+
+def mac_native_tag(tag):
+    match = re.fullmatch(r"v(\d+)\.(\d+)\.(\d+)-macos(?:-(preview|rc)\.([1-9][0-9]*))?", tag)
+    if not match: return False
+    key = tuple(map(int, match.group(1, 2, 3))) + ({None: 2, "rc": 1, "preview": 0}[match[4]], int(match[5] or 0))
+    return key >= (1, 5, 0, 1, 3)
+
+
+def release_eligibility(repository, tag, checked_sha, event_name, api):
+    gate = trusted_builds(repository, checked_sha, api)
+    ready = gate.pop("ready")
+    gate["publish"] = str(ready and check_remote(repository, tag, checked_sha, event_name, api)).lower()
+    return gate
+
+
 def expected_assets(tag):
     if "-linux" in tag:
         version = re.match(r"v(\d+\.\d+\.\d+)-linux", tag).group(1)
-        return {"ToastifyReloaded-Linux-x64.tar.gz", "ToastifyReloaded-Linux-arm64.tar.gz",
+        names = {"ToastifyReloaded-Linux-x64.tar.gz", "ToastifyReloaded-Linux-arm64.tar.gz",
                 "ToastifyReloaded-Linux-x64.AppImage", f"toastify-reloaded_{version}_amd64.deb",
                 f"toastify-reloaded_{version}_arm64.deb", "SHA256SUMS.txt"}
+        if tuple(map(int, version.split("."))) >= (1, 4, 2):
+            names.add("ToastifyReloaded-Linux-arm64.AppImage")
+            native_version = tag.replace("v", "", 1).replace("-linux", "", 1)
+            for rid in ("linux-x64", "linux-arm64"):
+                names |= {f"ToastifyReloadedLinux-{native_version}-{rid}-full.nupkg", f"releases.{rid}.json", f"RELEASES-{rid}"}
+        return names
     if "-macos" in tag:
-        return {f"ToastifyReloaded-macOS-{arch}.{kind}" for arch in ("x64", "arm64")
+        names = {f"ToastifyReloaded-macOS-{arch}.{kind}" for arch in ("x64", "arm64")
                 for kind in ("zip", "dmg")} | {"SHA256SUMS-macOS.txt"}
+        if mac_native_tag(tag):
+            native_version = tag.replace("v", "", 1).replace("-macos", "", 1)
+            for rid in ("osx-x64", "osx-arm64"):
+                names |= {f"ToastifyReloadedMac-{native_version}-{rid}-full.nupkg", f"releases.{rid}.json", f"RELEASES-{rid}"}
+        return names
     return windows_assets(tag)
 
 
@@ -173,8 +235,8 @@ def main():
                 return None
             raise RuntimeError("GitHub release preflight failed: HTTP " + str(error.code)) from None
 
-    publish = check_remote(repository, result["release_tag"], checked_sha, event_name, api)
-    result.update(release_sha=checked_sha, publish=str(publish).lower())
+    result.update(release_eligibility(repository, result["release_tag"], checked_sha, event_name, api))
+    result.update(release_sha=checked_sha)
     with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
         for key, value in result.items():
             output.write(f"{key}={value}\n")

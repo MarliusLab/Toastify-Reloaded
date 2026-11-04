@@ -16,6 +16,7 @@ public sealed class MacSettings
     public string HotkeyMute { get; set; } = "Ctrl+Alt+M";
     public string HotkeySeekForward { get; set; } = "Ctrl+Alt+Shift+Right";
     public string HotkeySeekBackward { get; set; } = "Ctrl+Alt+Shift+Left";
+    public string HotkeyShowToast { get; set; } = "Ctrl+Alt+T";
 
     public bool ShowToastOnTrackChange { get; set; } = true;
     public int ToastDisplayMs { get; set; } = 3500;

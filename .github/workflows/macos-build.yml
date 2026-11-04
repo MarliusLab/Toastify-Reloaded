@@ -3,42 +3,8 @@ name: macOS Build
 on:
   push:
     branches: [ main ]
-    paths:
-      - "src/ToastifyReloaded.Mac/**"
-      - "src/ToastifyReloaded.Shared/**"
-      - "tests/ToastifyReloaded.TrackLink.Tests/**"
-      - "docs/releases/**"
-      - "scripts/prepare-release.py"
-      - "scripts/test-prepare-release.py"
-      - "scripts/velopack_release.py"
-      - "scripts/test-velopack-release.py"
-      - "packaging/macos/**"
-      - "scripts/build-macos.sh"
-      - "scripts/package-macos-*.sh"
-      - "scripts/test-macos-ci.sh"
-      - "scripts/test-macos-gui.sh"
-      - "scripts/validate-macos-parity.py"
-      - ".github/workflows/macos-build.yml"
-      - ".github/workflows/macos-release.yml"
   pull_request:
     branches: [ main ]
-    paths:
-      - "src/ToastifyReloaded.Mac/**"
-      - "src/ToastifyReloaded.Shared/**"
-      - "tests/ToastifyReloaded.TrackLink.Tests/**"
-      - "docs/releases/**"
-      - "scripts/prepare-release.py"
-      - "scripts/test-prepare-release.py"
-      - "scripts/velopack_release.py"
-      - "scripts/test-velopack-release.py"
-      - "packaging/macos/**"
-      - "scripts/build-macos.sh"
-      - "scripts/package-macos-*.sh"
-      - "scripts/test-macos-ci.sh"
-      - "scripts/test-macos-gui.sh"
-      - "scripts/validate-macos-parity.py"
-      - ".github/workflows/macos-build.yml"
-      - ".github/workflows/macos-release.yml"
   workflow_dispatch:
 
 jobs:
@@ -54,6 +20,9 @@ jobs:
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: "8.0.x"
+
+      - name: Install pinned Velopack CLI
+        run: dotnet tool install vpk --version 1.2.161 --tool-path .tools/vpk
 
       - name: Prepare scripts
         run: chmod +x scripts/*macos*.sh
@@ -91,8 +60,14 @@ jobs:
       - name: Build and run native macOS self-test
         run: ./scripts/test-macos-ci.sh
 
+      - name: Verify permanent three-platform parity policy
+        run: python scripts/verify-platform-parity.py
+
       - name: Test release authorization and immutable tags
         run: python scripts/test-prepare-release.py
+
+      - name: Test native package feeds and immutable publication
+        run: python scripts/test-portable-release.py
 
       - name: Test track links and safe launcher fallbacks
         run: dotnet run --project tests/ToastifyReloaded.TrackLink.Tests -c Release
@@ -107,6 +82,11 @@ jobs:
           ./scripts/package-macos-app.sh osx-x64
           ./scripts/package-macos-app.sh osx-arm64
 
+      - name: Package signed Velopack app bundles and platform feeds
+        run: |
+          ./scripts/package-macos-velopack.sh osx-x64
+          ./scripts/package-macos-velopack.sh osx-arm64
+
       - name: Validate app bundles and architectures
         shell: bash
         run: |
@@ -115,6 +95,8 @@ jobs:
             APP="dist/macos/$RID/Toastify Reloaded.app"
             test -d "$APP"
             test -x "$APP/Contents/MacOS/ToastifyReloaded.Mac"
+            test -x "$APP/Contents/MacOS/UpdateMac"
+            test -s "$APP/Contents/Resources/sq.version"
             test -s "$APP/Contents/Resources/ToastifyReloaded.icns"
             plutil -lint "$APP/Contents/Info.plist"
             codesign --verify --verbose=2 "$APP"
@@ -145,15 +127,7 @@ jobs:
           test -s dist/ToastifyReloaded-macOS-arm64.zip
           test -s dist/ToastifyReloaded-macOS-x64.dmg
           test -s dist/ToastifyReloaded-macOS-arm64.dmg
-          (
-            cd dist
-            shasum -a 256 \
-              ToastifyReloaded-macOS-x64.zip \
-              ToastifyReloaded-macOS-arm64.zip \
-              ToastifyReloaded-macOS-x64.dmg \
-              ToastifyReloaded-macOS-arm64.dmg \
-              > SHA256SUMS-macOS.txt
-          )
+          python3 scripts/portable-release.py --platform macos --version "$(cat dist/macos/package-version.txt)" --directory dist --finalize
           cat dist/SHA256SUMS-macOS.txt
 
       - uses: actions/upload-artifact@v7
@@ -165,6 +139,10 @@ jobs:
             dist/ToastifyReloaded-macOS-x64.dmg
             dist/ToastifyReloaded-macOS-arm64.dmg
             dist/SHA256SUMS-macOS.txt
+            dist/SHA256SUMS-osx-*.txt
+            dist/ToastifyReloadedMac-*.nupkg
+            dist/releases.osx-*.json
+            dist/RELEASES-osx-*
             dist/macos-self-test.log
             dist/macos-smoke-test.log
           if-no-files-found: error

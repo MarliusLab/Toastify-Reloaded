@@ -9,24 +9,36 @@ namespace ToastifyReloaded.Mac.Services;
 public sealed class MacGlobalHotkeyService : IDisposable
 {
     private readonly SpotifyAppleScriptService _spotify;
+    private readonly Func<Task>? _showToast;
+    private readonly Func<bool>? _hasVisibleToast;
+    private readonly Func<Task>? _nowPlaying;
     private readonly object _sync = new();
     private readonly HashSet<KeyCode> _pressed = new();
     private readonly Dictionary<Shortcut, Func<Task>> _bindings = new();
 
     private SimpleGlobalHook? _hook;
     private Task? _hookTask;
+    private int _forwardingNowPlaying;
+    private int _generation;
+    private readonly HashSet<Shortcut> _pending = new();
 
     public string Status { get; private set; } = "Hotkey globali non inizializzate.";
     public bool PermissionGranted { get; private set; }
-    public int BindingCount => _bindings.Count;
+    public int BindingCount { get { lock (_sync) return _bindings.Count; } }
 
-    public MacGlobalHotkeyService(SpotifyAppleScriptService spotify)
-        => _spotify = spotify;
+    public MacGlobalHotkeyService(SpotifyAppleScriptService spotify, Func<Task>? showToast = null,
+        Func<bool>? hasVisibleToast = null, Func<Task>? nowPlaying = null)
+    {
+        _spotify = spotify;
+        _showToast = showToast;
+        _hasVisibleToast = hasVisibleToast;
+        _nowPlaying = nowPlaying;
+    }
 
     public Task<(bool Success, string Message)> ApplyAsync(MacSettings settings)
     {
         DisposeHook();
-        _bindings.Clear();
+        lock (_sync) _bindings.Clear();
 
         if (!settings.EnableGlobalHotkeys)
         {
@@ -55,6 +67,7 @@ public sealed class MacGlobalHotkeyService : IDisposable
         AddBinding(settings.HotkeyMute, _spotify.ToggleMuteAsync);
         AddBinding(settings.HotkeySeekForward, _spotify.SeekForwardAsync);
         AddBinding(settings.HotkeySeekBackward, _spotify.SeekBackwardAsync);
+        if (_showToast is not null) AddBinding(settings.HotkeyShowToast, _showToast);
 
         UioHookProvider.Instance.KeyTypedEnabled = false;
 
@@ -187,11 +200,12 @@ public sealed class MacGlobalHotkeyService : IDisposable
     {
         var shortcut = ParseShortcut(text);
         if (shortcut is not null)
-            _bindings[shortcut.Value] = action;
+            lock (_sync) _bindings.TryAdd(shortcut.Value, action);
     }
 
     private void Hook_KeyPressed(object? sender, KeyboardHookEventArgs e)
     {
+        if (e.IsEventSimulated) return;
         var key = e.Data.KeyCode;
 
         lock (_sync)
@@ -201,18 +215,66 @@ public sealed class MacGlobalHotkeyService : IDisposable
         }
 
         var modifiers = NormalizeModifiers(e.RawEvent.Mask);
-        if (_bindings.TryGetValue(new Shortcut(key, modifiers), out var action))
-            _ = Task.Run(action);
+        var shortcut = new Shortcut(key, modifiers);
+        var isNowPlaying = key == KeyCode.VcJ && modifiers == (EventMask.Alt | EventMask.Shift);
+        if (isNowPlaying && _hasVisibleToast?.Invoke() == true)
+        {
+            if (Volatile.Read(ref _forwardingNowPlaying) != 0) return;
+            e.SuppressEvent = true;
+            if (_nowPlaying is not null) QueueAfterRelease(shortcut, _nowPlaying);
+        }
+        else
+        {
+            Func<Task>? action;
+            lock (_sync) _bindings.TryGetValue(shortcut, out action);
+            if (action is not null) QueueAfterRelease(shortcut, action);
+        }
+    }
+
+    private void QueueAfterRelease(Shortcut shortcut, Func<Task> action)
+    {
+        var generation = Volatile.Read(ref _generation);
+        lock (_sync) if (!_pending.Add(shortcut)) return;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                for (var attempt = 0; attempt < 60; attempt++)
+                {
+                    if (generation != Volatile.Read(ref _generation)) return;
+                    bool released;
+                    lock (_sync) released = _pressed.Count == 0;
+                    if (released) { await action(); return; }
+                    await Task.Delay(25);
+                }
+            }
+            catch { /* A permission or native shortcut failure must not escape the hook. */ }
+            finally { lock (_sync) _pending.Remove(shortcut); }
+        });
+    }
+
+    public async Task<T> RunNowPlayingSuspendedAsync<T>(Func<Task<T>> action)
+    {
+        Interlocked.Increment(ref _forwardingNowPlaying);
+        try { return await action(); }
+        finally
+        {
+            // Native events can arrive just after osascript exits.
+            await Task.Delay(200);
+            Interlocked.Decrement(ref _forwardingNowPlaying);
+        }
     }
 
     private void Hook_KeyReleased(object? sender, KeyboardHookEventArgs e)
     {
+        if (e.IsEventSimulated) return;
         lock (_sync)
             _pressed.Remove(e.Data.KeyCode);
     }
 
     private void DisposeHook()
     {
+        Interlocked.Increment(ref _generation);
         if (_hook is null)
             return;
 

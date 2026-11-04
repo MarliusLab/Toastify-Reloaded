@@ -1,231 +1,189 @@
 using System.Diagnostics;
-using System.Net.Http.Headers;
+using System.IO.Compression;
 using System.Runtime.InteropServices;
-using System.Security.Cryptography;
 using ToastifyReloaded.Mac.Models;
+using ToastifyReloaded.Shared;
 
 namespace ToastifyReloaded.Mac.Services;
+
+public sealed record DownloadedMacUpdate(MacUpdateInfo Update, MacUpdateAsset? Asset, string? FilePath,
+    PortableUpdatePackage? Package = null);
 
 public sealed class MacUpdateInstallerService
 {
     private readonly ProcessService _process;
-    private readonly HttpClient _http = new()
-    {
-        Timeout = TimeSpan.FromMinutes(5)
-    };
+    private readonly HttpClient _http;
+    private readonly IPortableUpdateBackend? _packages;
 
-    public MacUpdateInstallerService(ProcessService process)
+    public MacUpdateInstallerService(ProcessService process, IPortableUpdateBackend? packages = null, HttpClient? http = null)
     {
         _process = process;
-        _http.DefaultRequestHeaders.UserAgent.Add(
-            new ProductInfoHeaderValue("ToastifyReloaded", "1.5.0"));
+        _packages = packages ?? (OperatingSystem.IsMacOS() ? new PortablePackageUpdateService("macos") : null);
+        _http = http ?? new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
+        _http.DefaultRequestHeaders.UserAgent.ParseAdd("ToastifyReloaded/1.5.0");
     }
 
-    public async Task<MacUpdateApplyResult> DownloadAndApplyAsync(
-        MacUpdateInfo update,
-        CancellationToken cancellationToken = default)
+    public Task<MacUpdateApplyResult> DownloadAndApplyAsync(MacUpdateInfo update, CancellationToken cancellationToken = default)
+        => DownloadAndApplyAsync(update, null, cancellationToken);
+
+    public async Task<MacUpdateApplyResult> DownloadAndApplyAsync(MacUpdateInfo update,
+        IProgress<UpdateOperationProgress>? progress, CancellationToken cancellationToken = default)
+        => await InstallAsync(await DownloadAsync(update, progress, cancellationToken), progress, cancellationToken);
+
+    public async Task<DownloadedMacUpdate> DownloadAsync(MacUpdateInfo update,
+        IProgress<UpdateOperationProgress>? progress = null, CancellationToken cancellationToken = default)
     {
-        var asset = SelectAsset(update, RuntimeInformation.ProcessArchitecture);
-        if (asset is null)
+        if (_packages?.IsInstalled == true)
         {
-            return new MacUpdateApplyResult(
-                false,
-                false,
-                "Nessun pacchetto macOS compatibile trovato nella release.",
-                null);
+            progress?.Report(new(UpdateOperationStage.Checking));
+            var package = await _packages.CheckAsync(cancellationToken);
+            var expected = update.Version.Major + "." + update.Version.Minor + "." + update.Version.Patch;
+            if (update.Version.Stage != MacReleaseStage.Stable)
+                expected += update.Version.Stage == MacReleaseStage.Preview ? "-preview." + update.Version.StageNumber : "-rc." + update.Version.StageNumber;
+            if (package is null || package.Version != expected)
+                throw new InvalidDataException("The checked macOS package feed does not match the requested release.");
+            await _packages.DownloadAsync(package, progress, cancellationToken);
+            return new(update, null, null, package);
         }
+        var asset = SelectAsset(update, RuntimeInformation.ProcessArchitecture)
+            ?? throw new InvalidDataException("Nessun pacchetto macOS compatibile trovato nella release.");
+        var destination = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            "Library", "Caches", "ToastifyReloaded", "updates", update.Tag, asset.Name);
+        await SafeUpdateDownloader.DownloadAsync(_http, asset.DownloadUri, update.Tag, asset.Name,
+            destination, asset.Size, asset.Digest, progress, cancellationToken);
+        return new(update, asset, destination);
+    }
 
-        var downloaded = await DownloadAsync(update, asset, cancellationToken);
-        if (!await VerifyDigestAsync(downloaded, asset.Digest, cancellationToken))
+    public async Task<MacUpdateApplyResult> InstallAsync(DownloadedMacUpdate downloaded,
+        IProgress<UpdateOperationProgress>? progress = null, CancellationToken cancellationToken = default,
+        bool restartMinimized = false)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (downloaded.Package is { } package)
         {
-            File.Delete(downloaded);
-            return new MacUpdateApplyResult(
-                false,
-                false,
-                "Verifica SHA-256 del pacchetto non riuscita.",
-                null);
+            if (_packages?.IsInstalled != true) throw new InvalidOperationException("Package backend changed; check again.");
+            progress?.Report(new(UpdateOperationStage.WaitingForPermission));
+            var started = await _packages.ApplyAndRestartAsync(package, restartMinimized, cancellationToken);
+            return new(started, started, started ? "Avvio aggiornamento macOS; segui l'eventuale richiesta di autorizzazione." :
+                "Impossibile avviare l'aggiornamento macOS.", null);
         }
-
-        var staging = Path.Combine(
-            Path.GetDirectoryName(downloaded)!,
-            "staging-" + Guid.NewGuid().ToString("N"));
+        var asset = downloaded.Asset ?? throw new InvalidDataException("Missing checked update asset.");
+        var downloadedPath = downloaded.FilePath ?? throw new InvalidDataException("Missing checked update path.");
+        if (!SafeUpdateDownloader.IsTrustedAssetUri(asset.DownloadUri, downloaded.Update.Tag, asset.Name) ||
+            Path.GetFileName(downloadedPath) != asset.Name) throw new InvalidDataException("Untrusted checked update.");
+        progress?.Report(new(UpdateOperationStage.Verifying));
+        await SafeUpdateDownloader.VerifyFileAsync(downloadedPath, asset.Size,
+            SafeUpdateDownloader.ParseDigest(asset.Digest), cancellationToken);
+        using (var zip = ZipFile.OpenRead(downloadedPath))
+        {
+            if (zip.Entries.Any(entry => entry.FullName.StartsWith('/') || entry.FullName.Contains('\\') ||
+                entry.FullName.Split('/').Contains("..")))
+                throw new InvalidDataException("Il pacchetto contiene percorsi non sicuri.");
+        }
+        var staging = Path.Combine(Path.GetDirectoryName(downloadedPath)!, "staging-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(staging);
-
-        var extract = await _process.RunAsync(
-            "/usr/bin/ditto",
-            new[] { "-x", "-k", downloaded, staging },
-            cancellationToken);
-
-        if (extract.ExitCode != 0)
+        progress?.Report(new(UpdateOperationStage.Preparing));
+        var extract = await _process.RunAsync("/usr/bin/ditto", new[] { "-x", "-k", downloadedPath, staging },
+            cancellationToken, TimeSpan.FromMinutes(2));
+        if (extract.ExitCode != 0) return new(false, false, extract.StdErr, downloadedPath);
+        var apps = Directory.GetDirectories(staging, "*.app", SearchOption.TopDirectoryOnly);
+        if (apps.Length != 1) return new(false, false, "Il pacchetto deve contenere un solo bundle .app.", downloadedPath);
+        var current = FindCurrentAppBundle();
+        if (current is null)
         {
-            return new MacUpdateApplyResult(
-                false,
-                false,
-                string.IsNullOrWhiteSpace(extract.StdErr)
-                    ? "Estrazione aggiornamento macOS non riuscita."
-                    : extract.StdErr,
-                downloaded);
+            // An unpackaged development process cannot replace a real install.
+            return new(true, false, "Aggiornamento verificato ed estratto; installa il bundle dalla cartella scaricata.", apps[0]);
         }
-
-        var newApp = Directory
-            .EnumerateDirectories(staging, "*.app", SearchOption.TopDirectoryOnly)
-            .FirstOrDefault();
-
-        if (newApp is null)
+        cancellationToken.ThrowIfCancellationRequested();
+        var helper = CreateReplacementHelper(current, apps[0], Environment.ProcessId, restartMinimized);
+        progress?.Report(new(UpdateOperationStage.WaitingForPermission,
+            Message: "Chiudi Toastify e segui l'eventuale autorizzazione macOS; il riavvio avviene come utente normale."));
+        cancellationToken.ThrowIfCancellationRequested();
+        if (Process.Start(new ProcessStartInfo
         {
-            return new MacUpdateApplyResult(
-                false,
-                false,
-                "Il pacchetto aggiornamento non contiene un bundle .app.",
-                downloaded);
-        }
-
-        var currentApp = FindCurrentAppBundle();
-        if (currentApp is null)
-        {
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = "/usr/bin/open",
-                UseShellExecute = false,
-                ArgumentList = { newApp }
-            });
-
-            return new MacUpdateApplyResult(
-                true,
-                true,
-                "Aggiornamento estratto e nuova app avviata.",
-                newApp);
-        }
-
-        var helper = CreateReplacementHelper(currentApp, newApp, Environment.ProcessId);
-        Process.Start(new ProcessStartInfo
-        {
-            FileName = "/bin/sh",
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            ArgumentList = { helper }
-        });
-
-        return new MacUpdateApplyResult(
-            true,
-            true,
-            "Aggiornamento macOS scaricato. Toastify Reloaded verrà sostituito e riavviato; macOS può richiedere l'autorizzazione amministratore.",
-            downloaded);
+            FileName = "/bin/sh", UseShellExecute = false, CreateNoWindow = true, ArgumentList = { helper }
+        }) is null) return new(false, false, "Impossibile avviare l'assistente aggiornamento.", downloadedPath);
+        return new(true, true, "Assistente aggiornamento avviato; sostituirà il bundle dopo la chiusura di Toastify.", downloadedPath);
     }
 
-    internal static MacUpdateAsset? SelectAsset(
-        MacUpdateInfo update,
-        Architecture architecture)
+    internal static MacUpdateAsset? SelectAsset(MacUpdateInfo update, Architecture architecture)
     {
-        var expected = architecture == Architecture.Arm64
-            ? "ToastifyReloaded-macOS-arm64.zip"
-            : "ToastifyReloaded-macOS-x64.zip";
-
-        return update.Assets.FirstOrDefault(x =>
-            string.Equals(x.Name, expected, StringComparison.OrdinalIgnoreCase));
-    }
-
-    private async Task<string> DownloadAsync(
-        MacUpdateInfo update,
-        MacUpdateAsset asset,
-        CancellationToken cancellationToken)
-    {
-        var directory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            "Library",
-            "Caches",
-            "ToastifyReloaded",
-            "updates",
-            update.Tag);
-
-        Directory.CreateDirectory(directory);
-        var destination = Path.Combine(directory, asset.Name);
-
-        using var response = await _http.GetAsync(
-            asset.DownloadUri,
-            HttpCompletionOption.ResponseHeadersRead,
-            cancellationToken);
-        response.EnsureSuccessStatusCode();
-
-        await using var input = await response.Content.ReadAsStreamAsync(cancellationToken);
-        await using var output = File.Create(destination);
-        await input.CopyToAsync(output, cancellationToken);
-        return destination;
-    }
-
-    private static async Task<bool> VerifyDigestAsync(
-        string path,
-        string? digest,
-        CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(digest) ||
-            !digest.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase))
-            return true;
-
-        var expected = digest["sha256:".Length..].Trim().ToLowerInvariant();
-        await using var stream = File.OpenRead(path);
-        var bytes = await SHA256.HashDataAsync(stream, cancellationToken);
-        var actual = Convert.ToHexString(bytes).ToLowerInvariant();
-        return string.Equals(expected, actual, StringComparison.Ordinal);
+        if (architecture is not (Architecture.X64 or Architecture.Arm64)) return null;
+        var expected = "ToastifyReloaded-macOS-" + (architecture == Architecture.Arm64 ? "arm64" : "x64") + ".zip";
+        return update.Assets.SingleOrDefault(asset => asset.Name == expected);
     }
 
     internal static string? FindCurrentAppBundle()
     {
-        var processPath = Environment.ProcessPath;
-        if (string.IsNullOrWhiteSpace(processPath))
-            return null;
-
-        var directory = new DirectoryInfo(Path.GetDirectoryName(processPath)!);
+        var process = Environment.ProcessPath;
+        if (string.IsNullOrWhiteSpace(process)) return null;
+        var directory = new DirectoryInfo(Path.GetDirectoryName(process)!);
         while (directory is not null)
         {
-            if (directory.Name.EndsWith(".app", StringComparison.OrdinalIgnoreCase))
-                return directory.FullName;
+            if (directory.Name.EndsWith(".app", StringComparison.OrdinalIgnoreCase)) return directory.FullName;
             directory = directory.Parent;
         }
-
         return null;
     }
 
-    private static string CreateReplacementHelper(string currentApp, string newApp, int pid)
+    internal static string CreateReplacementHelper(string currentApp, string newApp, int pid, bool minimized = false)
     {
-        var helperRoot = Path.Combine(
-            Path.GetTempPath(),
-            "ToastifyReloaded-update-" + Guid.NewGuid().ToString("N"));
+        if (pid <= 0 || !Path.IsPathRooted(currentApp) || !currentApp.EndsWith(".app", StringComparison.OrdinalIgnoreCase) ||
+            !Path.IsPathRooted(newApp) || !newApp.EndsWith(".app", StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("Invalid macOS update handoff.");
+        var helperRoot = Path.Combine(Path.GetTempPath(), "ToastifyReloaded-update-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(helperRoot);
-
+        var worker = Path.Combine(helperRoot, "replace.sh");
+        var appleScript = Path.Combine(helperRoot, "elevate.applescript");
         var helper = Path.Combine(helperRoot, "apply-update.sh");
-        var backup = currentApp + ".previous";
-
-        var replacementCommand = string.Join("; ", new[]
+        File.WriteAllText(worker, """
+#!/bin/sh
+set -eu
+current=$1
+staged=$2
+nonce=$3
+candidate="$current.update-$nonce"
+backup="$current.previous-$nonce"
+[ ! -e "$candidate" ] && [ ! -e "$backup" ] || exit 73
+trap '/bin/rm -rf -- "$candidate"' EXIT
+/usr/bin/ditto "$staged" "$candidate"
+/bin/mv "$current" "$backup"
+if /bin/mv "$candidate" "$current"; then
+  /bin/rm -rf -- "$backup"
+else
+  /bin/mv "$backup" "$current"
+  exit 1
+fi
+""");
+        File.WriteAllText(appleScript, """
+on run argv
+    set commandText to "/bin/sh " & quoted form of (item 1 of argv) & " " & quoted form of (item 2 of argv) & " " & quoted form of (item 3 of argv) & " " & quoted form of (item 4 of argv)
+    do shell script commandText with administrator privileges
+end run
+""");
+        // Paths are literal shell arguments. The AppleScript lives in its own
+        // file, so quotes/spaces/apostrophes never cross two quoting layers.
+        var lines = new[]
         {
-            $"/bin/rm -rf {ShellQuote(backup)}",
-            $"/bin/mv {ShellQuote(currentApp)} {ShellQuote(backup)}",
-            $"if /usr/bin/ditto {ShellQuote(newApp)} {ShellQuote(currentApp)}; then /bin/rm -rf {ShellQuote(backup)}; /usr/bin/open {ShellQuote(currentApp)}; else /bin/rm -rf {ShellQuote(currentApp)}; /bin/mv {ShellQuote(backup)} {ShellQuote(currentApp)}; /usr/bin/open {ShellQuote(currentApp)}; exit 1; fi"
-        });
-
-        var appleScriptCommand = replacementCommand
-            .Replace("\\", "\\\\", StringComparison.Ordinal)
-            .Replace("\"", "\\\"", StringComparison.Ordinal);
-
-        var script = string.Join("\n", new[]
-        {
-            "#!/bin/sh",
-            "set -u",
-            $"while /bin/kill -0 {pid} 2>/dev/null; do",
-            "  /bin/sleep 0.25",
-            "done",
-            $"/usr/bin/osascript -e 'do shell script \"{appleScriptCommand}\" with administrator privileges'",
-            $"/bin/rm -rf {ShellQuote(helperRoot)}",
-            string.Empty
-        });
-
-        File.WriteAllText(helper, script);
-        File.SetUnixFileMode(
-            helper,
-            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            "#!/bin/sh", "set -eu",
+            "current=" + ShellQuote(currentApp), "staged=" + ShellQuote(newApp),
+            "worker=" + ShellQuote(worker), "apple=" + ShellQuote(appleScript),
+            "nonce=" + ShellQuote(Guid.NewGuid().ToString("N")),
+            "count=0", "while /bin/kill -0 " + pid + " 2>/dev/null; do",
+            "  count=$((count + 1))", "  [ \"$count\" -lt 240 ] || exit 1", "  /bin/sleep 0.25", "done",
+            "if [ -w \"$(/usr/bin/dirname \"$current\")\" ] && [ -w \"$current\" ]; then",
+            "  /bin/sh \"$worker\" \"$current\" \"$staged\" \"$nonce\"",
+            "else", "  /usr/bin/osascript \"$apple\" \"$worker\" \"$current\" \"$staged\" \"$nonce\"", "fi",
+            // This outer helper is not elevated. Never open the app from the
+            // privileged replacement worker or inherit its administrator token.
+            "/usr/bin/open \"$current\"" + (minimized ? " --args --minimized" : ""),
+            "/bin/rm -rf -- " + ShellQuote(helperRoot), ""
+        };
+        File.WriteAllText(helper, string.Join("\n", lines));
+        foreach (var file in new[] { helper, worker })
+            File.SetUnixFileMode(file, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
         return helper;
     }
 
-    private static string ShellQuote(string value)
-        => "'" + value.Replace("'", "'\\''", StringComparison.Ordinal) + "'";
+    private static string ShellQuote(string value) => "'" + value.Replace("'", "'\\''", StringComparison.Ordinal) + "'";
 }

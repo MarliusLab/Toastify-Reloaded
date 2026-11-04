@@ -22,9 +22,9 @@ public sealed class CompatibilityGuardService
         _spicetify = spicetify;
     }
 
-    public async Task<CompatibilityGuardResult> CheckAsync(MacSettings settings)
+    public async Task<CompatibilityGuardResult> CheckAsync(MacSettings settings, CancellationToken cancellationToken = default)
     {
-        var spotify = await _spotifyVersion.GetVersionAsync();
+        var spotify = await _spotifyVersion.GetVersionAsync(cancellationToken);
 
         if (spotify is null)
             return new(false, false, false, "GuardNoSpotify", null);
@@ -45,7 +45,7 @@ public sealed class CompatibilityGuardService
             return new(true, true, false, "GuardRepairFailed", spotify);
 
         settings.LastRepairAttemptVersion = spotify.Version;
-        var repair = await _spicetify.RepairAfterSpotifyUpdateAsync(settings.KeepLyricsPlus);
+        var repair = await _spicetify.RepairAfterSpotifyUpdateAsync(settings.KeepLyricsPlus, cancellationToken);
 
         if (repair.Success)
         {

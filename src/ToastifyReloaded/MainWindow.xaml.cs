@@ -1,3 +1,4 @@
+using ToastifyReloaded.Shared;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -573,7 +574,8 @@ public partial class MainWindow : Window
 
             if (!result.Success || !result.UpdateAvailable)
                 return false;
-            if (!allowAutomaticInstall || (!_settings.AutoInstallToastifyUpdates && !forceInstall))
+            if (!allowAutomaticInstall || (!forceInstall &&
+                (!_settings.AutoInstallToastifyUpdates || UpdateSessionPolicy.SuppressAutomaticInstall)))
                 return false;
             if (!_updateService.IsVelopackInstalled && string.IsNullOrWhiteSpace(result.DownloadUrl))
             {

@@ -23,9 +23,9 @@ public sealed class CompatibilityGuardService
     }
 
     public async Task<CompatibilityGuardResult> CheckAsync(
-        LinuxSettings settings)
+        LinuxSettings settings, CancellationToken cancellationToken = default)
     {
-        var spotify = await _spotifyVersion.GetVersionAsync();
+        var spotify = await _spotifyVersion.GetVersionAsync(cancellationToken);
 
         if (spotify is null)
         {
@@ -78,7 +78,7 @@ public sealed class CompatibilityGuardService
         settings.LastRepairAttemptVersion = spotify.Version;
 
         var repair = await _spicetify.RepairAfterSpotifyUpdateAsync(
-            settings.KeepLyricsPlus);
+            settings.KeepLyricsPlus, cancellationToken);
 
         if (repair.Success)
         {
