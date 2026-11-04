@@ -23,7 +23,7 @@
   <img alt=".NET 8" src="https://img.shields.io/badge/.NET-8.0-512BD4">
   <img alt="Windows" src="https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4">
   <img alt="Linux" src="https://img.shields.io/badge/Linux-x64%20%7C%20ARM64-FCC624">
-  <img alt="macOS RC4" src="https://img.shields.io/badge/macOS-RC4%20Intel%20%7C%20Apple%20Silicon-555555">
+  <img alt="macOS RC5" src="https://img.shields.io/badge/macOS-RC5%20Intel%20%7C%20Apple%20Silicon-555555">
 </p>
 
 **Toastify Reloaded** is a modern continuation of the classic Toastify experience for Spotify on Windows, Linux and macOS.
@@ -34,17 +34,15 @@ The project keeps the recognizable Toastify workflow and notification style whil
 
 | Platform | Current release | Channel |
 |---|---|---|
-| Windows | [`v1.3.13`](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.3.13) | Stable |
-| Linux | [`v1.4.3-linux`](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.4.3-linux) | Stable |
-| macOS | [`v1.5.0-macos-rc.4`](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.5.0-macos-rc.4) | Release candidate; not stable |
+| Windows | [`v1.3.14`](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.3.14) | Stable |
+| Linux | [`v1.4.4-linux`](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.4.4-linux) | Stable |
+| macOS | [`v1.5.0-macos-rc.5`](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.5.0-macos-rc.5) | Release candidate; not stable |
 
-All three releases are published from source `269c51f92ec4deac190a8a2b322ea92faeb591c3` after successful Windows, Linux and macOS main builds. Historical release tags and assets remain unchanged. Every future Windows change must also be reviewed, implemented and tested for Linux and macOS; see the [permanent platform policy and behavior matrix](docs/CROSS_PLATFORM_PARITY.md).
-
-**In preparation: Windows 1.3.14, Linux 1.4.4 and macOS RC5.** A real-user report identified that holding Ctrl between Ctrl+Up presses triggered the input guard's 1.5-second timeout; earlier controller-only delay tests did not cover that path. The correction gives Show Toast its own primary-key-release guard and makes visible exit animations interruptible. New tests exercise real timed windows, held modifiers and pending navigation on all three applications. Existing published versions above remain current until all release gates pass.
+All three releases are published from source `94e5cdb45086ecc9471c3739426ac9b369019eab` after successful Windows, Linux and macOS main builds. Historical release tags and assets remain unchanged. Every future Windows change must also be reviewed, implemented and tested for Linux and macOS; see the [permanent platform policy and behavior matrix](docs/CROSS_PLATFORM_PARITY.md).
 
 **Toast behavior on all three platforms:** click title, artist, artwork or background to request Lyrics Plus. Enter/Space on focused text offers the same action. Your saved **Show Toast** shortcut first shows a toast; another press while any toast is visible requests Lyrics Plus; after all close it shows a toast again. Existing assignments and settings are preserved. Lyrics Plus must already be enabled/applied; its providers may not have lyrics for every song. The Lyrics action sends no playback command or track-selection URI.
 
-The next Show Toast press can be delayed: **there is no fast double-tap deadline**. Visibility at the time of the press decides the action; the configured toast duration is preserved.
+The next Show Toast press can be delayed: **there is no fast double-tap deadline**. You can keep Ctrl held between Ctrl+Up presses; the Lyrics action waits for Up and mouse buttons to release, rather than requiring Ctrl release. A still-visible fading toast remains actionable, pauses its old close and resumes the configured exit after navigation. Saved duration and assignments are preserved. Click/Enter and Alt+Shift+J retain their separate stricter input guards.
 
 **Alt+Shift+J remains the current-track action.** Windows/macOS request Spotify's Now Playing navigation; Linux resolves a fresh validated MPRIS track URI, with safe activation fallback. X11 registers it temporarily while a toast is visible; Wayland supports it locally and retains the approved global Show Toast shortcut. A saved Show Toast assignment of Alt+Shift+J keeps current-track precedence while a toast is visible. Permissions, external shortcut collisions and compositor remapping can affect availability.
 
@@ -52,50 +50,52 @@ The next Show Toast press can be delayed: **there is no fast double-tap deadline
 
 ## Download
 
-### Windows — stable 1.3.13
+### Windows — stable 1.3.14
 
-[Windows v1.3.13 release and checksums](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.3.13)
+[Windows v1.3.14 release and checksums](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.3.14)
 
-- **Intel/AMD x64:** [ToastifyReloaded-Setup-win-x64.exe](https://github.com/MarliusLab/Toastify-Reloaded/releases/download/v1.3.13/ToastifyReloaded-Setup-win-x64.exe)
-- **Windows ARM64:** [ToastifyReloaded-Setup-win-arm64.exe](https://github.com/MarliusLab/Toastify-Reloaded/releases/download/v1.3.13/ToastifyReloaded-Setup-win-arm64.exe)
+- **Intel/AMD x64:** [ToastifyReloaded-Setup-win-x64.exe](https://github.com/MarliusLab/Toastify-Reloaded/releases/download/v1.3.14/ToastifyReloaded-Setup-win-x64.exe)
+- **Windows ARM64:** [ToastifyReloaded-Setup-win-arm64.exe](https://github.com/MarliusLab/Toastify-Reloaded/releases/download/v1.3.14/ToastifyReloaded-Setup-win-arm64.exe)
 - Checksums: `SHA256SUMS-Windows.txt`.
 
-**Fixed: an applied update incorrectly reported as failed.** NSIS's native `System.dll` could shadow the managed framework reference while PowerShell compiled the normal-user restart helper. Version 1.3.13 isolates compilation in the trusted CLR directory and distinguishes installed success from restart failure. Tests reproduce the exact collision under 32-bit and 64-bit Windows PowerShell 5.1 and run the real entry script with isolated dependencies.
+**New in 1.3.14: held Ctrl and visible fade-out.** The reported workflow is reproduced on the complete timed WPF path: first Ctrl+Up, wait two seconds with Ctrl still held, then press/release Up again. It now requests Lyrics Plus without a modifier-release timeout. Stale animation completions cannot close the toast during navigation.
+
+**Installer recovery retained:** NSIS's native `System.dll` could shadow the managed framework reference while PowerShell compiled the normal-user restart helper. Version 1.3.14 isolates compilation in the trusted CLR directory and distinguishes installed success from restart failure. Tests reproduce the exact collision under 32-bit and 64-bit Windows PowerShell 5.1 and run the real entry script with isolated dependencies.
 
 If 1.3.12 reported this error after saying the package was applied, it may already be installed: open Toastify from Start. No uninstall or settings reset is needed. Helper/import/launch failure after a verified installation now gives manual-start instructions. The previous no-window Setup fix is retained.
 
-Already migrated to Velopack? Use Toastify's in-app update for the delta from 1.3.12, with verified full fallback. The compatibility Setup is for manual installation or the one-time transition from older installations; its larger size includes the MSI and full baseline. Program Files updates can still require Windows permission.
+Already migrated to Velopack? Use Toastify's in-app update for the delta from 1.3.13, with verified full fallback. The compatibility Setup is for manual installation or the one-time transition from older installations; its larger size includes the MSI and full baseline. Program Files updates can still require Windows permission.
 
 Saved settings, automatic-update preferences, Lyrics Plus clicks, delayed Show Toast behavior, Ctrl+drag and playback controls are retained. See [Windows updates](docs/WINDOWS_VELOPACK.md) and [toast behavior](docs/WINDOWS_TOAST.md).
 
-### Linux — stable 1.4.3
+### Linux — stable 1.4.4
 
-[Linux v1.4.3 release and checksums](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.4.3-linux)
+[Linux v1.4.4 release and checksums](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.4.4-linux)
 
 | Architecture | Packages |
 |---|---|
-| x64 | `ToastifyReloaded-Linux-x64.AppImage`, `toastify-reloaded_1.4.3_amd64.deb`, `ToastifyReloaded-Linux-x64.tar.gz` |
-| ARM64 | `ToastifyReloaded-Linux-arm64.AppImage`, `toastify-reloaded_1.4.3_arm64.deb`, `ToastifyReloaded-Linux-arm64.tar.gz` |
+| x64 | `ToastifyReloaded-Linux-x64.AppImage`, `toastify-reloaded_1.4.4_amd64.deb`, `ToastifyReloaded-Linux-x64.tar.gz` |
+| ARM64 | `ToastifyReloaded-Linux-arm64.AppImage`, `toastify-reloaded_1.4.4_arm64.deb`, `ToastifyReloaded-Linux-arm64.tar.gz` |
 
-Checksums: `SHA256SUMS.txt`. Both architectures passed native AppImage self-tests and virtual-X11 startup. Version 1.4.3 adds Lyrics Plus/two-press toast behavior, independent version probes and bounded, cancellable update progress while preserving existing desktop features and configuration.
+Checksums: `SHA256SUMS.txt`. Both architectures passed native AppImage self-tests and virtual-X11 startup. Version 1.4.4 retains Lyrics Plus/two-press toast behavior, independent version probes and bounded, cancellable update progress while preserving existing desktop features and configuration.
 
-Version 1.4.3 preserves installed success after legacy AppImage/DEB restart failures and adds the GLib shortcut tools dependency to both DEBs. Its 15 verified assets include two real deltas from 1.4.2. Both native patch engines reconstructed the target contents and rejected corrupt deltas without installing or starting the app. A client without a usable cached full base downloads the complete package first. DEB retains its package-manager route and tar retains manual updating. See [Linux installation and desktop limits](docs/LINUX.md).
+Version 1.4.4 adds held-modifier-safe hotkey routing and interruptible visible fades. Real timed production windows are exercised by the new headless suite. It preserves installed success after legacy AppImage/DEB restart failures and adds the GLib shortcut tools dependency to both DEBs. Its 15 verified assets include two real deltas from 1.4.3. Both native patch engines reconstructed the target contents and rejected corrupt deltas without installing or starting the app. A client without a usable cached full base downloads the complete package first. DEB retains its package-manager route and tar retains manual updating. See [Linux installation and desktop limits](docs/LINUX.md).
 
-### macOS — 1.5.0 RC4
+### macOS — 1.5.0 RC5
 
-[macOS RC4 release and checksums](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.5.0-macos-rc.4)
+[macOS RC5 release and checksums](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.5.0-macos-rc.5)
 
 - **Apple Silicon:** `ToastifyReloaded-macOS-arm64.dmg` or `ToastifyReloaded-macOS-arm64.zip`.
 - **Intel:** `ToastifyReloaded-macOS-x64.dmg` or `ToastifyReloaded-macOS-x64.zip`.
 - Checksums: `SHA256SUMS-macOS.txt`.
 
-RC4 preserves committed legacy bundle replacement through backup-cleanup failure and records failed normal-user startup as installed with manual restart guidance. Its 13 verified assets include two real deltas from RC3; native ARM64 patch-only reconstruction and corrupt-delta rejection passed. The seven generated-helper scenarios cover recovery, literal paths, settings preservation and process wait behavior. Settings, bundle identity and all toast features are retained.
+RC5 fixes held modifiers in both the native Show Toast hook and the dedicated Lyrics service, and permits navigation during visible fade-out. It preserves committed legacy bundle replacement through backup-cleanup failure and records failed normal-user startup as installed with manual restart guidance. Its 13 verified assets include two real deltas from RC4; native ARM64 patch-only reconstruction and corrupt-delta rejection passed. The seven generated-helper scenarios cover recovery, literal paths, settings preservation and process wait behavior. Settings, bundle identity and all toast features are retained.
 
 Both architecture bundles, updater helpers, ad-hoc signatures and ZIP/DMG packages passed CI. The native ARM64 app passed startup testing; Intel was compiled and inspected. Real Spotify interaction, Accessibility/Automation permissions and installed-client upgrades remain acceptance work. Ad-hoc signatures do not establish Developer ID signing, notarization or Gatekeeper acceptance. See [macOS installation and permissions](docs/MACOS.md).
 
 ### Verification
 
-The released source passed [Windows main build](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41853524659), [Linux main build](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41853524394) and [macOS main build](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41853524407). Checks include **324 Windows regressions**, **217 shared assertions on Windows, 226 on Linux and 225 on macOS**, **94 desktop-restart/entrypoint checks**, **7 native NSIS parser cases**, **37 synthetic migration checks**, **27 release guards**, **17 Windows feed tests**, **10 recovery tests** and **18 native-publication tests**, plus the classic UI and 50-setting/66-control Linux/macOS parity contracts.
+The released source passed [Windows main build](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41871730569), [Linux main build](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41871731058) and [macOS main build](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41871730719). Checks include **359 Windows regressions**, **218 shared assertions on Windows, 227 on Linux and 226 on macOS**, **27 production Avalonia timed-window checks on each build**, **94 desktop-restart/entrypoint checks**, **7 native NSIS parser cases**, **37 synthetic migration checks**, **27 release guards**, **17 Windows feed tests**, **10 recovery tests** and **18 native-publication tests**, plus the classic UI and 50-setting/66-control Linux/macOS parity contracts.
 
 Release workflows reuse the exact tested main artifacts and verify package identity, architecture, feeds, uploaded sizes and SHA-256 before publishing. [Detailed evidence and remaining native acceptance](docs/PLATFORM_STATUS.md) distinguishes compilation, native startup, synthetic updater tests and actual user interaction. The new installer has not been interactively installed on the development PC by these automated tests.
 
@@ -373,15 +373,15 @@ Version **1.3.0** is the largest Reloaded UI and customization update so far.
 
 ---
 
-# Linux — stable v1.4.3-linux
+# Linux — stable v1.4.4-linux
 
 The Linux port is maintained separately from the existing Windows/WPF application and is built with **Avalonia**.
 
 Spotify playback and metadata use **MPRIS** through `playerctl`. Global shortcut handling uses `xbindkeys` on X11 and the **XDG Global Shortcuts Portal** on Wayland.
 
-## Linux 1.4.3 feature set
+## Linux 1.4.4 feature set
 
-Linux 1.4.3 includes:
+Linux 1.4.4 includes:
 
 - Play / Pause, Previous and Next;
 - Seek ±10 seconds;
@@ -445,7 +445,7 @@ Settings can also be exported and imported as JSON from the application.
 
 ```text
 ToastifyReloaded-Linux-x64.AppImage
-toastify-reloaded_1.4.3_amd64.deb
+toastify-reloaded_1.4.4_amd64.deb
 ToastifyReloaded-Linux-x64.tar.gz
 ```
 
@@ -453,7 +453,7 @@ ToastifyReloaded-Linux-x64.tar.gz
 
 ```text
 ToastifyReloaded-Linux-arm64.AppImage
-toastify-reloaded_1.4.3_arm64.deb
+toastify-reloaded_1.4.4_arm64.deb
 ToastifyReloaded-Linux-arm64.tar.gz
 ```
 
@@ -856,9 +856,9 @@ Network access is mainly used for update checks and components such as Spicetify
 | Windows 11 x64 | Supported |
 | Windows 10 x64 | Supported |
 | Windows ARM64 | Installer/build available |
-| Linux x64 | Stable 1.4.3 line — AppImage / `.deb` / tar.gz |
-| Linux ARM64 | Stable 1.4.3 line — AppImage / `.deb` / tar.gz; native startup passed, real desktop acceptance open |
-| macOS Intel / Apple Silicon | 1.5.0 RC4 — ZIP / DMG; interactive acceptance and signing/notarization pending |
+| Linux x64 | Stable 1.4.4 line — AppImage / `.deb` / tar.gz |
+| Linux ARM64 | Stable 1.4.4 line — AppImage / `.deb` / tar.gz; native startup passed, real desktop acceptance open |
+| macOS Intel / Apple Silicon | 1.5.0 RC5 — ZIP / DMG; interactive acceptance and signing/notarization pending |
 | Spotify desktop client | Supported |
 | Global hotkeys | Supported |
 | Multiple monitors | Supported |
@@ -1046,7 +1046,7 @@ Package x64:
 ./scripts/package-linux-tar.sh
 ./scripts/package-linux-deb.sh
 dotnet tool install vpk --version 1.2.161 --tool-path .tools/vpk
-./scripts/package-linux-velopack.sh x64 1.4.3
+./scripts/package-linux-velopack.sh x64 1.4.4
 ```
 
 See `docs/LINUX.md` for the complete Linux notes.
@@ -1087,9 +1087,9 @@ Toastify-Reloaded/
 
 | Platform | Published version | Distribution |
 |---|---|---|
-| Windows x64 / ARM64 | Stable 1.3.13 | Setup / MSI / full and delta package updates |
-| Linux x64 / ARM64 | Stable 1.4.3 | AppImage / DEB / tar.gz / native package feeds |
-| macOS Intel / Apple Silicon | 1.5.0 RC4; stable acceptance pending | ZIP / DMG / native package feeds |
+| Windows x64 / ARM64 | Stable 1.3.14 | Setup / MSI / full and delta package updates |
+| Linux x64 / ARM64 | Stable 1.4.4 | AppImage / DEB / tar.gz / native package feeds |
+| macOS Intel / Apple Silicon | 1.5.0 RC5; stable acceptance pending | ZIP / DMG / native package feeds |
 
 Toast clicks now request Lyrics Plus on all three platforms. The saved Show Toast shortcut displays a toast and requests Lyrics Plus on its next press while a toast is visible. Alt+Shift+J keeps its separate current-track destination, subject to native support and permissions. See the [behavior matrix](docs/CROSS_PLATFORM_PARITY.md), [verification evidence and remaining acceptance](docs/PLATFORM_STATUS.md).
 

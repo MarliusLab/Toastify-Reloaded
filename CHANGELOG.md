@@ -2,11 +2,14 @@
 
 Published releases are listed in [GitHub Releases](https://github.com/MarliusLab/Toastify-Reloaded/releases). Historical tags are preserved.
 
-## 1.3.14 / 1.4.4-linux / 1.5.0-macos-rc.5 - in preparation
+## 1.3.14 / 1.4.4-linux / 1.5.0-macos-rc.5 - 2026-11-04
 
 - Reproduced the actual Ctrl+Up failure with Control held across a two-second interval on the complete Windows hotkey/controller/ShowTimed/service path. The dedicated Show Toast Lyrics route now permits held modifiers after primary-key/mouse release. Normal clicks/Enter and Now Playing retain strict input guards; no synthetic input or playback command is added.
 - Keep visible toasts actionable during exit animation, invalidate stale close callbacks and hold the same window while navigation is pending. Entry completion cannot restart the expiration timer during an action. Resume configured close afterwards and preserve settings, shortcuts and appearance.
 - Apply the same hotkey routing and timed-lifetime behavior to Linux and macOS; the macOS hook also stops waiting for all modifiers. Add actual Avalonia headless production-window tests alongside the real WPF timed-path regressions and service guard cases. Controller-only delay tests remain narrower evidence and did not prove the original held-Ctrl workflow.
+- Published from `94e5cdb45086ecc9471c3739426ac9b369019eab` after all three main builds passed. Windows passed 359 regressions, including 13 real timed-path and 22 hotkey-guard cases; shared checks passed 218 on Windows, 227 on Linux and 226 on macOS. All three builds passed 27 production Avalonia timed-window checks, with fake openers/input and no Spotify or installed-app activity.
+- Preserved the 94 desktop-restart/entrypoint checks, 7 NSIS parser cases, 37 synthetic migration checks and release suites 27/17/10/18. Native Linux x64/ARM64 and macOS ARM64 delta/corruption probes, startup and platform packaging/signature gates passed. A test-only follow-up allows bounded headless scheduler latency when observing eventual animated close; input/pending/cancellation assertions and runtime code were unchanged by that follow-up.
+- Publication workflows succeeded: [Windows 41873306111](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41873306111), [Linux 41873305792](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41873305792), [macOS 41873306112](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41873306112). Asset sets are 13/15/13, each with two real deltas. All 34 previous tag targets remain unchanged; macOS remains a prerelease. See [platform evidence](docs/PLATFORM_STATUS.md) for native/interactive limits.
 
 ## 1.3.13 / 1.4.3-linux / 1.5.0-macos-rc.4 - 2026-11-04
 

@@ -1,6 +1,46 @@
 # Implementation, releases and validation status
 
-## Current published restart-recovery update — 2026-11-04
+## Current published held-modifier and timed-toast correction — 2026-11-04
+
+| Platform | Published release | Verified public state |
+|---|---|---|
+| Windows x64 / ARM64 | [Stable `v1.3.14`](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.3.14) | Release ID `434205596`; 13 assets, including both architecture deltas from 1.3.13; not draft or prerelease |
+| Linux x64 / ARM64 | [Stable `v1.4.4-linux`](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.4.4-linux) | Release ID `434205383`; 15 assets, including both architecture deltas from 1.4.3; not draft or prerelease |
+| macOS Intel / Apple Silicon | [Prerelease `v1.5.0-macos-rc.5`](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.5.0-macos-rc.5) | Release ID `434205398`; 13 assets, including both architecture deltas from RC4; not draft, remains a prerelease |
+
+The three releases and their new tags use the same tested commit, `94e5cdb45086ecc9471c3739426ac9b369019eab`. Independent API reads confirmed the exact source, release flags and 13/15/13 nonempty uploaded assets with SHA-256 digests. All **34 previous tag refs** retain their original targets; there are now 37 refs. Publication validated the private drafts against the tested artifact bytes and exact feed/package identities before making them public.
+
+Post-publication downloads also verified the actual bytes, sizes and SHA-256 values of all **15 public metadata files** (five per platform): two feeds, two RELEASES files and one checksum manifest. The manifests cover exactly the remaining 12/14/12 release assets, and both Full/Delta feeds match their platform, architecture, version and package digests. GitHub's latest stable release resolves to Windows `v1.3.14`.
+
+### Actual defect, correction and regression gap
+
+The user reported that the second Show Toast press worked only in rapid succession and confirmed keeping Ctrl held. The controller itself had no double-tap deadline, but the production Lyrics guard waited for every key, including Ctrl, to be released within 1500 ms. Keeping Ctrl pressed could therefore consume a delayed second action without opening Lyrics Plus. Separately, a toast still visible during fade-out was selected by the controller but refused the request; its separately scheduled close could also interrupt pending navigation.
+
+The relevant 1.3.13 delayed-press test used `Show()` and an injected opener. Existing timed tests did not cover the complete registered-action dispatcher → `ShowTimed()` → toast request → production guard path with Ctrl held, or a long visible fade. Their passing result did not establish that interaction. A new test failed against the old code after a two-second delay with Ctrl still held, then passed with the correction.
+
+The configured Show Toast action now uses a dedicated Lyrics context: modifiers may stay held, while the primary key and mouse buttons must still be released before handing off the fixed URI or focusing Spotify. Click/Enter/Space retain their strict release guard, Alt+Shift+J retains its separate current-track action, and no synthetic release of the user's modifiers was introduced. Accepted navigation interrupts active entry/exit animations, invalidates their stale callbacks, holds the toast while work is pending and subsequently resumes its configured lifetime/exit. Linux and macOS include the corresponding contextual navigation and timed-lifetime behavior. Preferences and the saved shortcut are retained.
+
+### Successful main builds and coordinated publication
+
+| Platform | Successful main build | Successful publication | Checks actually passed |
+|---|---|---|---|
+| Windows | [41871730569](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41871730569) | [41873306111](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41873306111) | 359 Windows/WPF assertions, including 22 modifier-guard and 13 real timed-window cases; 218 shared assertions; 27 Avalonia headless assertions; native SDK patch/fallback fixtures; both architecture packages |
+| Linux | [41871731058](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41871731058) | [41873305792](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41873305792) | 227 shared assertions; 27 Avalonia headless assertions; native x64/ARM64 AppImage self-tests and 10-second Xvfb startup; native patch-only reconstruction and corrupt-delta rejection on both architectures |
+| macOS | [41871730719](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41871730719) | [41873306112](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41873306112) | 226 shared assertions; 27 Avalonia headless assertions; native ARM64 patch-only reconstruction and corrupt-delta rejection; native ARM64 startup; both architecture bundle/signature/ZIP/DMG/feed checks |
+
+All three main builds passed the parity verifier, 27 release guard tests and 18 native feed/publication tests. Windows also passed 94 desktop-restart assertions, 7 native NSIS parser cases, 37 synthetic migration checks, 17 Windows feed/publication tests and 10 recovery tests. Shared totals differ because platform-specific cases execute on their matching hosts.
+
+The 13 new WPF assertions exercise actual timed windows and the action dispatcher with simulated input/URI adapters: Ctrl held across a two-second delayed press, the primary key's independent release, a 500 ms display followed by a 3000 ms fade, pending navigation beyond the old close deadline, eventual close/new display, and overlapping/hidden toasts. The 22 guard assertions retain checks for primary/mouse blocking, ordinary click strictness, newly pressed keys after URI acceptance and cancellation. No actual key injection or Spotify launch was used by these fixtures. The 27 Avalonia headless assertions execute both native ports' timed-toast paths on each CI host; they are separate from the native desktop startup smoke tests and real-client acceptance.
+
+The first merged source, `3c355405a7e5ae7d5fc98c64a96c72d229fcfe2e`, was correctly blocked by its [failed macOS build](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41870622309): a Linux headless fixture's four-second wait for resumed close timed out on the Mac runner. The follow-up changed only two UI fixture waits/diagnostics, allowing up to 30 seconds while still requiring actual closure; production runtime code was unchanged. All three builds then passed again at the released follow-up SHA above. Earlier release checks skipped download/upload/publication while Windows and/or macOS were incomplete. No release was published from the failed source, and final publication reused the exact successful build artifacts.
+
+Each platform includes two genuine deltas from its verified previous full baseline. Public x64/ARM64 delta sizes are Windows **254,361 / 254,059 bytes**, Linux **192,076 / 199,320 bytes**, and macOS **49,676 / 193,217 bytes**. Native Unix patch-only probes reconstructed and compared every package entry against the new full package, rejecting deliberately corrupt delta content: four entries for each Linux architecture and 14 for macOS ARM64. Intel macOS was packaged and inspected, not natively executed; native patch probes never installed or launched the application. Full fallback remains covered by the SDK fixtures.
+
+### Actual installed PC and remaining acceptance
+
+The read-only PC check at 17:00 UTC still finds **Windows 1.3.13**, source identity `269c51f92ec4deac190a8a2b322ea92faeb591c3`, with the same **76 saved configuration properties** and unchanged JSON SHA-256. These tests did not install 1.3.14 on that PC. Actual installed-client Ctrl+Up behavior with a real keyboard/Spotify, native Linux compositor/shortcut behavior, macOS permissions and installed update/restart flows remain **interactive acceptance pending**. Provider lyrics availability is separate from successful page navigation. macOS remains RC5; CI ad-hoc signing does not establish Developer ID/notarization or Gatekeeper acceptance. Earlier validation and publication evidence remains below as history.
+
+## Previous restart-recovery publication — source `269c51f` (2026-11-04)
 
 | Platform | Published release | Verified public state |
 |---|---|---|

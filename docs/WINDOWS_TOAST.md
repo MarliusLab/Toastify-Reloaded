@@ -1,6 +1,6 @@
 # Windows toast: Lyrics Plus clicks and Now Playing shortcut
 
-**[Windows 1.3.13 is published](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.3.13).** It preserves Lyrics Plus clicks and contextual Show Toast behavior. The next press can be delayed for as long as the toast remains visible; no fast double-tap deadline or duration change is introduced. It also fixes the installer restart compiler collision and distinguishes committed installation from manual-start recovery. Native CI passed 324 Windows checks, including the delayed WPF action; the common visibility controller is compiled and tested on all three platforms. Linux 1.4.3 and macOS RC4 contain the corresponding behavior and recovery updates; see [platform evidence](PLATFORM_STATUS.md). Earlier real-client service probes remain historical evidence below.
+**[Windows 1.3.14 is published](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.3.14).** You can keep Ctrl held between Ctrl+Up presses, wait, then press and release Up again while the toast remains visible to request Lyrics Plus. The hotkey action permits held modifiers and waits for the primary key and mouse buttons to release. A visible toast remains actionable during its fade; navigation interrupts stale close callbacks and then resumes the configured exit. Saved assignments, duration, all settings and installer recovery are preserved. Linux 1.4.4 and macOS RC5 contain the corresponding correction; see [platform evidence](PLATFORM_STATUS.md). Earlier real-client service probes remain historical evidence below.
 
 ## Current behavior (introduced in Windows 1.3.11)
 
@@ -22,9 +22,11 @@ The existing **Show Toast** assignment (default Ctrl+Alt+T) changes its action a
 
 This uses the saved combination, including custom keys, without rewriting preferences or requiring a new assignment. The global-hotkeys preference still controls registration. **Exception: Alt+Shift+J is reserved for Now Playing while a toast is visible, even when saved as Show Toast or another user action.** Other Show Toast combinations follow the contextual Lyrics Plus behavior above.
 
+The second press has no fast double-tap deadline. With a saved Ctrl+Up assignment, Ctrl may remain down between presses; release Up after the next press. Once a request is accepted, the toast remains visible while it is pending, then resumes its configured lifetime/exit. An explicit close cancels pending work.
+
 ## Input, focus and concurrent toasts
 
-URI dispatch, window activation and live held-input checks run off the WPF UI thread. The Lyrics Plus path waits a bounded interval for held keyboard input, including arbitrary keys in the configured Show Toast combination, and both main mouse buttons to be released before dispatch or focus. The separate Now Playing path retains its own shortcut/Enter/Space/mouse guards. This protects against held activation input repeating into Spotify after focus changes. Failure to release input stops the attempt; Toastify does not release the user's physical keys itself.
+URI dispatch, window activation and live held-input checks run off the WPF UI thread. The configured Show Toast action uses a dedicated Lyrics guard: Ctrl, Alt, Shift and Windows modifiers may remain held, while nonmodifier keys and both main mouse buttons must be released before dispatch or focus. Click/Enter/Space retain the strict guard requiring all held input to release. The separate Now Playing path retains its own shortcut/Enter/Space/mouse guards. A bounded wait or cancellation stops an unreleased primary-key attempt; Toastify does not release the user's physical keys itself.
 
 Overlapping toasts share one temporary Alt+Shift+J registration and one execution gate for both actions. Repeated or concurrent activation is suppressed while a request is in progress; the latest visible toast receives the global Now Playing action. The final close/hide releases the temporary registration. Closing a toast cancels its pending work, while an already accepted external request cannot be undone.
 
@@ -32,7 +34,13 @@ The global-hotkeys setting is respected. Alt+Shift+J is also handled locally whe
 
 Windows may refuse foreground activation even after accepting a URI. The result distinguishes a Lyrics Plus protocol request, Spotify-only activation and failure. A successful request confirms handoff to the registered handler; it does not confirm the displayed view, provider response or playback continuity.
 
-## Windows 1.3.11 verification
+## Windows 1.3.14 verification
+
+All three native main builds and coordinated publications passed at source `94e5cdb45086ecc9471c3739426ac9b369019eab`. Windows passed **359 regression assertions**, including **13 new timed-window assertions** and **22 hotkey-guard assertions**, plus **218 shared assertions**. The **27 Avalonia headless assertions** for Linux/macOS timed windows passed on all three hosts. The WPF test now follows the real action dispatcher and `ShowTimed()` path, holding Ctrl across a two-second delay and independently releasing Up; visible fade interruption, pending navigation past the old close deadline, overlapping/hidden toasts and cancellation are covered. The prior injected-opener `Show()` test did not establish this complete interaction.
+
+These tests simulate key state and URI handling, without injecting real keys or starting Spotify. The PC still had 1.3.13 and its unchanged 76 settings at the final read-only check; the installed 1.3.14 keyboard/Spotify interaction remains pending. After updating, show a toast with Ctrl+Up, keep Ctrl held, wait, then press/release Up again before the toast disappears. Confirm Lyrics Plus opens and playback continues. Native build, package/update and publication evidence is recorded in [platform status](PLATFORM_STATUS.md).
+
+## Historical Windows 1.3.11 verification
 
 Local and native CI validation passed **317 Windows regression checks**, **140 shared assertions**, **19 release guards**, **17 feed/publication tests**, **10 recovery tests** and the classic WPF layout contract. The Windows harness covers Lyrics Plus URI/fallback behavior, guarded Now Playing forwarding, configured shortcut keys, visible/expired toast transitions, WPF event routes, held triggers, responsiveness, cancellation, shared gating and foreign shortcut ownership. It also retains maintenance and real SDK/native patch fixture checks; the total is not 317 new Lyrics Plus tests. These automated results remain separate from real-client acceptance.
 

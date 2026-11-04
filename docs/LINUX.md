@@ -1,20 +1,24 @@
 # Toastify Reloaded — Linux
 
-Published stable version: **1.4.3**
+Published stable version: **1.4.4**
 
-Stable tag: **`v1.4.3-linux`**
+Stable tag: **`v1.4.4-linux`**
 
-[Download Linux v1.4.3](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.4.3-linux).
+[Download Linux v1.4.4](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.4.4-linux).
 
 The Linux port is intentionally isolated from the stable Windows/WPF application and uses Linux-native backends where Windows APIs do not exist.
 
-## Published 1.4.3
+## Published 1.4.4
 
-Published on **4 November 2026**, from source **`269c51f92ec4deac190a8a2b322ea92faeb591c3`**, with 15 verified assets, including genuine x64 and ARM64 delta packages. The release is public and stable; earlier releases and existing tags remain unchanged.
+Published on **4 November 2026**, from source **`94e5cdb45086ecc9471c3739426ac9b369019eab`**, with 15 verified assets, including genuine x64 and ARM64 delta packages. The release is public and stable; earlier releases and existing tags remain unchanged.
 
 Clicking the toast, title or artist requests **Lyrics Plus** through the fixed `spotify:app:lyrics-plus` route. Enter/Space on either text link performs the same action after the key and held modifiers are released. If that route fails, Toastify tries to activate Spotify and reports the fallback; route acceptance does not confirm that Lyrics Plus is installed or has lyrics for the current song. The Lyrics Plus path sends no play, pause, seek or track-selection command.
 
 The configurable **Show Toast** shortcut defaults to `Ctrl+Alt+T` when an older settings file has no assignment. The first press displays a toast; another press while any toast is visible requests Lyrics Plus. This uses toast visibility, with no double-tap deadline. After all toasts close, the shortcut shows a toast again. Existing saved shortcuts and disabled assignments are preserved. Tray/test buttons continue to show a toast.
+
+In 1.4.4, a visible toast remains actionable during entry and exit animations. An accepted request interrupts the fade, restores that same window and holds it open until navigation settles; its earlier exit deadline cannot cancel the action. It then resumes the configured exit. Explicitly closing the toast cancels an outstanding request. No saved display durations, animations or shortcut assignments are changed.
+
+The global shortcut uses a dedicated Lyrics Plus entry point. X11 dispatches from the existing release binding, and Wayland dispatches from the portal's `Deactivated` signal; Linux adds no separate wait for Ctrl/Alt/Shift release. The portal does not supply physical modifier state, so held-Ctrl behavior on a physical Wayland desktop remains unverified and depends on the backend's release event.
 
 **Alt+Shift+J** remains separate: it reads the current MPRIS track identifier at invocation time and requests its validated Spotify link, with safe Spotify activation fallbacks for missing/local identifiers. Spotify owns the link's effect; Toastify sends no synthetic input or explicit playback command. X11 registers this shortcut globally only while a toast is visible and restores its own saved assignments afterwards; native conflicts are reported when the backend exposes them. Wayland supports Alt+Shift+J while the toast has keyboard focus. If the saved Show Toast shortcut itself is Alt+Shift+J, its first press shows a toast and a visible-toast press takes the current-track action. Other approved global Show Toast bindings retain the two-press Lyrics Plus behavior.
 
@@ -84,7 +88,7 @@ libfontconfig1
 
 For AppImage/tar users, install the required host tools and desktop libraries using the package manager for the distribution.
 
-The X11 global Show Toast and temporary current-track shortcuts require `gdbus`. The 1.4.3 DEB packages explicitly declare `libglib2.0-bin`, which supplies this command. AppImage/tar users should install their distribution's GLib command-line tools and check `command -v gdbus` before using these bindings.
+The X11 global Show Toast and temporary current-track shortcuts require `gdbus`. The DEB packages explicitly declare `libglib2.0-bin`, which supplies this command. AppImage/tar users should install their distribution's GLib command-line tools and check `command -v gdbus` before using these bindings.
 
 ### Ubuntu / Debian
 
@@ -162,7 +166,7 @@ The normal settings file is:
 
 The application can import/export JSON settings through Avalonia's storage provider.
 
-## Update behavior in 1.4.3
+## Update behavior in 1.4.4
 
 Velopack **1.2.161** supplies native AppImage update packages for x64 and ARM64. A Velopack-managed AppImage uses its architecture-specific feed, verifies the downloaded package, and hands application/restart to the native helper. Existing unmanaged AppImage and DEB installations retain the package-aware transition path; tar installations retain the manual archive path. Normal settings stay outside the application package and are preserved.
 
@@ -170,7 +174,7 @@ Legacy AppImage/DEB restart helpers wait for the old process to exit before laun
 
 After a legacy AppImage replacement or a successful DEB transaction, installation remains successful even if the normal-user restart helper cannot start. Toastify reports the restart failure separately, keeps settings intact and asks you to close and reopen the app manually; it does not retry installation or use an elevated app launch. A native SDK handoff or a downloaded manual archive is not reported as a confirmed installation.
 
-Version 1.4.2 established the **full-package baseline**. Version 1.4.3 publishes genuine **1.4.2 → 1.4.3** deltas for both architectures. A client needs a usable cached baseline to apply a delta; missing, corrupt or inapplicable deltas use the full-package fallback. Legacy AppImage, DEB and tar archives are not treated as native full-package baselines. Native reconstruction tests do not constitute an installed-client update/restart acceptance test.
+Version 1.4.2 established the **full-package baseline**. Version 1.4.4 publishes genuine **1.4.3 → 1.4.4** deltas for both architectures. A client needs a usable cached baseline to apply a delta; missing, corrupt or inapplicable deltas use the full-package fallback. Legacy AppImage, DEB and tar archives are not treated as native full-package baselines. Native reconstruction tests do not constitute an installed-client update/restart acceptance test.
 
 The stable updater checks GitHub Releases and only accepts later **stable Linux** tags for stable installations.
 
@@ -186,16 +190,16 @@ Channel policy:
 - **`.deb`:** download, verify SHA-256 when available, use the privileged package path when available; otherwise leave the downloaded package for manual installation;
 - **tar.gz:** download the matching portable archive without overwriting an unknown custom installation.
 
-## Published 1.4.3 release packages
+## Published 1.4.4 release packages
 
 ### x64
 
 ```text
 ToastifyReloaded-Linux-x64.AppImage
 ToastifyReloaded-Linux-x64.tar.gz
-toastify-reloaded_1.4.3_amd64.deb
-ToastifyReloadedLinux-1.4.3-linux-x64-full.nupkg
-ToastifyReloadedLinux-1.4.3-linux-x64-delta.nupkg
+toastify-reloaded_1.4.4_amd64.deb
+ToastifyReloadedLinux-1.4.4-linux-x64-full.nupkg
+ToastifyReloadedLinux-1.4.4-linux-x64-delta.nupkg
 releases.linux-x64.json
 RELEASES-linux-x64
 ```
@@ -205,9 +209,9 @@ RELEASES-linux-x64
 ```text
 ToastifyReloaded-Linux-arm64.tar.gz
 ToastifyReloaded-Linux-arm64.AppImage
-toastify-reloaded_1.4.3_arm64.deb
-ToastifyReloadedLinux-1.4.3-linux-arm64-full.nupkg
-ToastifyReloadedLinux-1.4.3-linux-arm64-delta.nupkg
+toastify-reloaded_1.4.4_arm64.deb
+ToastifyReloadedLinux-1.4.4-linux-arm64-full.nupkg
+ToastifyReloadedLinux-1.4.4-linux-arm64-delta.nupkg
 releases.linux-arm64.json
 RELEASES-linux-arm64
 ```
@@ -265,7 +269,7 @@ chmod +x scripts/package-linux-tar.sh scripts/package-linux-deb.sh scripts/packa
 ./scripts/package-linux-tar.sh
 ./scripts/package-linux-deb.sh
 dotnet tool install vpk --version 1.2.161 --tool-path .tools/vpk
-./scripts/package-linux-velopack.sh x64 1.4.3
+./scripts/package-linux-velopack.sh x64 1.4.4
 ```
 
 Build ARM64 packages:
@@ -274,7 +278,7 @@ Build ARM64 packages:
 chmod +x scripts/package-linux-arm64-tar.sh scripts/package-linux-arm64-deb.sh scripts/package-linux-velopack.sh
 ./scripts/package-linux-arm64-tar.sh
 ./scripts/package-linux-arm64-deb.sh
-./scripts/package-linux-velopack.sh arm64 1.4.3
+./scripts/package-linux-velopack.sh arm64 1.4.4
 ```
 
 ## CI / stable release gate
@@ -296,21 +300,22 @@ The updated Linux CI is configured to require:
 The tag workflow for:
 
 ```text
-v1.4.3-linux
+v1.4.4-linux
 ```
 
 selects the tested source build, verifies its artifacts, generates the complete `SHA256SUMS.txt` and publishes the same private draft only after asset and immutable-source checks pass.
 
 ### Verified release evidence
 
-[Linux main build 41853524394](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41853524394) passed on source `269c51f92ec4deac190a8a2b322ea92faeb591c3`:
+[Linux main build 41871731058](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41871731058) passed on source `94e5cdb45086ecc9471c3739426ac9b369019eab`:
 
-- **226 shared regression checks**, including post-install restart-failure classification, delayed visible-toast navigation, configured Wayland Alt+Shift+J precedence and the real Linux synthetic-process restart timing check;
+- **227 shared regression checks**, including the dedicated hotkey route, post-install restart-failure classification, delayed visible-toast navigation, configured Wayland Alt+Shift+J precedence and the real Linux synthetic-process restart timing check;
+- **27 headless UI checks** against the actual Linux and macOS timed toast windows, covering fade interruption, pending actions beyond the previous exit deadline, normal closure after completion, explicit-close cancellation and hidden/closed owners;
 - native x64 and ARM64 builds, ELF architecture checks, AppImage self-tests and 10-second graphical startup under virtual X11;
-- real native x64 and ARM64 delta reconstruction from the verified published 1.4.2 baseline, comparison of every reconstructed package entry and rejection of deliberately damaged delta content;
+- real native x64 and ARM64 delta reconstruction from the verified published 1.4.3 baseline, comparison of every reconstructed package entry and rejection of deliberately damaged delta content;
 - DEB/tar/AppImage packaging, explicit GLib dependency checks, native full/delta feeds and artifact checksum validation.
 
-[Linux Release 41856043711](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41856043711) verified and published all **15 nonempty assets**, including both real delta packages and `SHA256SUMS.txt`. Independent public-download checks verified the bytes and SHA-256 digests of both JSON feeds, both `RELEASES` files and the checksum manifest, matching all 14 listed asset digests. The stable tag and release source both resolve to the tested commit above.
+[Linux Release 41873305792](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41873305792) verified and published all **15 nonempty assets**, including both real delta packages and `SHA256SUMS.txt`. Independent public-download checks verified the bytes and SHA-256 digests of both JSON feeds, both `RELEASES` files and the checksum manifest, matching all 14 listed asset digests. The stable tag and release source both resolve to the tested commit above.
 
 These checks establish automated startup, package and regression evidence. They do not replace live Spotify/Lyrics Plus acceptance on an X11 or Wayland desktop, or an installed-client update/restart test.
 
