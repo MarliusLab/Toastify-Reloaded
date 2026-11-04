@@ -21,7 +21,7 @@ def event():
 
 class ReleaseGuardTests(unittest.TestCase):
     def test_all_prepared_versions_have_source_and_notes(self):
-        expected = {"windows": ("v1.3.9", "false"), "linux": ("v1.4.1-linux", "false"),
+        expected = {"windows": ("v1.3.10", "false"), "linux": ("v1.4.1-linux", "false"),
                     "macos": ("v1.5.0-macos-rc.2", "true")}
         for platform, (tag, prerelease) in expected.items():
             with self.subTest(platform=platform):
@@ -71,6 +71,24 @@ class ReleaseGuardTests(unittest.TestCase):
         complete = {"id": 1, "assets": [{"name": name, "size": 1}
                     for name in guard.expected_assets("v1.4.1-linux")]}
         self.assertFalse(guard.check_remote(REPO, "v1.4.1-linux", SHA, "workflow_run", lambda _: complete))
+
+    def test_legacy_windows_releases_keep_their_original_three_asset_contract(self):
+        legacy_names = {"ToastifyReloaded-Setup-win-x64.exe", "ToastifyReloaded-Setup-win-arm64.exe", "SHA256SUMS-Windows.txt"}
+        for tag in ("v.1.3.5", "v1.3.6", "v1.3.7", "v1.3.8", "v1.3.9"):
+            with self.subTest(tag=tag):
+                self.assertEqual(guard.expected_assets(tag), legacy_names)
+                complete = {"id": 1, "assets": [{"name": name, "size": 1} for name in legacy_names]}
+                self.assertFalse(guard.check_remote(REPO, tag, SHA, "workflow_run", lambda _: complete))
+
+    def test_first_velopack_release_requires_full_feeds_and_msis_but_not_deltas(self):
+        assets = guard.expected_assets("v1.3.10")
+        self.assertEqual(len(assets), 11)
+        for rid in ("win-x64", "win-arm64"):
+            self.assertIn(f"ToastifyReloaded-1.3.10-{rid}-full.nupkg", assets)
+            self.assertIn(f"ToastifyReloaded-{rid}.msi", assets)
+            self.assertIn(f"releases.{rid}.json", assets)
+            self.assertIn(f"RELEASES-{rid}", assets)
+        self.assertFalse(any("delta" in name for name in assets))
 
     def test_incomplete_release_can_only_resume_at_original_source(self):
         for target in (SHA, "2" * 40):

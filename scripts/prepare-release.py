@@ -11,6 +11,8 @@ from urllib.parse import quote
 from urllib.request import Request, urlopen
 import xml.etree.ElementTree as ET
 
+from velopack_release import FIRST_VELOPACK_VERSION, VPK_VERSION, windows_assets, windows_version
+
 PLATFORMS = {
     "windows": ("ToastifyReloaded", "", "build"),
     "linux": ("ToastifyReloaded.Linux", "LinuxUpdateService.cs", "Linux Build"),
@@ -31,9 +33,14 @@ def validate_plan(root, platform):
     if not match:
         raise ValueError("Invalid platform release tag")
     folder = root / "src" / project
-    version = ET.parse(folder / (project + ".csproj")).findtext("./PropertyGroup/Version")
+    project_tree = ET.parse(folder / (project + ".csproj"))
+    version = project_tree.findtext("./PropertyGroup/Version")
     if version != match.group(1):
         raise ValueError("Release tag does not match assembly version")
+    if platform == "windows" and windows_version(tag) >= FIRST_VELOPACK_VERSION:
+        references = project_tree.findall("./ItemGroup/PackageReference[@Include='Velopack']")
+        if len(references) != 1 or references[0].get("Version") != VPK_VERSION:
+            raise ValueError("Windows release requires the pinned Velopack SDK " + VPK_VERSION)
     if service:
         source = (folder / "Services" / service).read_text(encoding="utf-8-sig")
         current = re.search(r'public const string CurrentTag = "([^"]+)";', source)
@@ -79,8 +86,7 @@ def expected_assets(tag):
     if "-macos" in tag:
         return {f"ToastifyReloaded-macOS-{arch}.{kind}" for arch in ("x64", "arm64")
                 for kind in ("zip", "dmg")} | {"SHA256SUMS-macOS.txt"}
-    return {"ToastifyReloaded-Setup-win-x64.exe", "ToastifyReloaded-Setup-win-arm64.exe",
-            "SHA256SUMS-Windows.txt"}
+    return windows_assets(tag)
 
 
 def check_remote(repository, tag, checked_sha, event_name, api):

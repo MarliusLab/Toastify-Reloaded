@@ -65,32 +65,53 @@ jobs:
         if: steps.prepare.outputs.publish == 'true'
         run: dotnet run --project tests/ToastifyReloaded.TrackLink.Tests -c Release
 
-      - name: Test Windows Now Playing, toast shortcuts, detection and updates
+      - name: Test versioned package feeds and immutable delta bases
         if: steps.prepare.outputs.publish == 'true'
-        run: dotnet run --project tests/ToastifyReloaded.Windows.Tests -c Release
+        run: python scripts/test-velopack-release.py
 
-      - name: Build x64 installer
+      - name: Install pinned Velopack CLI
+        if: steps.prepare.outputs.publish == 'true'
+        run: dotnet tool install vpk --version 1.2.161 --tool-path .tools/vpk
+
+      - name: Test migration and rollback without installing
         if: steps.prepare.outputs.publish == 'true'
         shell: pwsh
-        run: .\scripts\build-installer.ps1 -Runtime win-x64
+        run: .\scripts\test-windows-package-migration.ps1
 
-      - name: Build ARM64 installer
-        if: steps.prepare.outputs.publish == 'true'
-        shell: pwsh
-        run: .\scripts\build-installer.ps1 -Runtime win-arm64
-
-      - name: Generate Windows SHA-256 checksums
+      - name: Verify synthetic delta chain and corrupt-delta full fallback
         if: steps.prepare.outputs.publish == 'true'
         shell: pwsh
         run: |
-          $names = @('ToastifyReloaded-Setup-win-x64.exe', 'ToastifyReloaded-Setup-win-arm64.exe')
-          $lines = foreach ($name in $names) {
-            $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path dist $name)).Hash.ToLowerInvariant()
-            "$hash  $name"
-          }
-          [IO.File]::WriteAllLines((Join-Path (Get-Location) 'dist/SHA256SUMS-Windows.txt'), $lines, [Text.UTF8Encoding]::new($false))
+          $report = python scripts/test-velopack-delta.py --vpk .tools/vpk/vpk.exe --package-id ToastifyReloaded --versions 1.3.10 1.3.11 1.3.12 --keep-fixtures
+          if ($LASTEXITCODE -ne 0) { throw 'Native delta probe failed' }
+          $probe = $report | ConvertFrom-Json
+          $helper = (Resolve-Path .tools/vpk/.store/vpk/1.2.161/vpk/1.2.161/vendor/update_x64.exe).Path
+          "TOASTIFY_VELOPACK_FIXTURES=$($probe.fixture_directory)" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "TOASTIFY_VELOPACK_PATCH_HELPER=$helper" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host $report
 
-      - name: Create GitHub Release
+      - name: Test Windows features and real updater patch-only full fallback
+        if: steps.prepare.outputs.publish == 'true'
+        run: dotnet run --project tests/ToastifyReloaded.Windows.Tests -c Release
+
+      - name: Build and verify Windows x64 and ARM64 packages
+        if: steps.prepare.outputs.publish == 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [xml]$project = Get-Content src/ToastifyReloaded/ToastifyReloaded.csproj -Raw
+          $version = $project.SelectSingleNode('/Project/PropertyGroup/Version').InnerText.Trim()
+          foreach ($runtime in @('win-x64', 'win-arm64')) {
+            $base = "artifacts/velopack-base/$runtime"
+            python scripts/prepare-velopack-base.py --version $version --runtime $runtime --output $base
+            if ($LASTEXITCODE -ne 0) { throw "Previous-release verification failed for $runtime" }
+            .\scripts\build-windows-packages.ps1 -Runtime $runtime -PreviousReleaseDir $base
+          }
+          python scripts/finalize-velopack-release.py --directory dist/windows-release --version $version
+          if ($LASTEXITCODE -ne 0) { throw 'Windows publication contract validation failed' }
+
+      - name: Upload verified packages to a private draft
         if: steps.prepare.outputs.publish == 'true'
         uses: softprops/action-gh-release@v2
         with:
@@ -99,10 +120,26 @@ jobs:
           name: Toastify Reloaded ${{ steps.prepare.outputs.release_tag }}
           body_path: ${{ steps.prepare.outputs.notes_path }}
           generate_release_notes: false
-          make_latest: true
+          draft: true
+          make_latest: false
           prerelease: false
           fail_on_unmatched_files: true
           files: |
-            dist/ToastifyReloaded-Setup-win-x64.exe
-            dist/ToastifyReloaded-Setup-win-arm64.exe
-            dist/SHA256SUMS-Windows.txt
+            dist/windows-release/*
+
+      - name: Verify uploaded feed hashes and publish complete release
+        if: steps.prepare.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SOURCE_SHA: ${{ steps.prepare.outputs.release_sha }}
+        run: python scripts/publish-windows-release.py --tag $env:RELEASE_TAG --sha $env:RELEASE_SOURCE_SHA --directory dist/windows-release
+
+      - name: Upload delta validation evidence
+        if: always() && steps.prepare.outputs.publish == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Windows-release-validation
+          path: |
+            artifacts/velopack-delta-probe.json
+            artifacts/velopack-base/**/base.json
+          if-no-files-found: ignore

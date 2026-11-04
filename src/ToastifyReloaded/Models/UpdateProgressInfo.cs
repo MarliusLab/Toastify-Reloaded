@@ -5,17 +5,21 @@ public enum UpdatePhase
     Downloading,
     Verifying,
     WaitingForPermission,
-    LaunchingInstaller
+    LaunchingInstaller,
+    LaunchingUpdater
 }
 
-/// <summary>Download progress and handoff state; installation progress belongs to NSIS.</summary>
+/// <summary>Download/preparation progress and the external update handoff state.</summary>
 public sealed record UpdateProgressInfo(
     UpdatePhase Phase,
     long BytesReceived = 0,
-    long? TotalBytes = null)
+    long? TotalBytes = null,
+    double? PercentOverride = null,
+    bool IsPackageUpdate = false)
 {
-    public double? Percent => Phase == UpdatePhase.Downloading && TotalBytes is > 0
-        ? Math.Clamp((double)BytesReceived / TotalBytes.Value * 100, 0, 100)
+    public double? Percent => Phase != UpdatePhase.Downloading ? null
+        : PercentOverride is { } value && double.IsFinite(value) ? Math.Clamp(value, 0, 100)
+        : TotalBytes is > 0 ? Math.Clamp((double)BytesReceived / TotalBytes.Value * 100, 0, 100)
         : null;
 
     public bool CanCancel => Phase is UpdatePhase.Downloading or UpdatePhase.Verifying;
