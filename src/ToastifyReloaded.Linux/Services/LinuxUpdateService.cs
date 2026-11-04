@@ -7,7 +7,7 @@ namespace ToastifyReloaded.Linux.Services;
 
 public sealed partial class LinuxUpdateService
 {
-    public const string CurrentTag = "v1.4.2-linux";
+    public const string CurrentTag = "v1.4.3-linux";
 
     public static readonly LinuxReleaseVersion CurrentVersion =
         ParseTag(CurrentTag)
@@ -29,7 +29,7 @@ public sealed partial class LinuxUpdateService
         _http.DefaultRequestHeaders.UserAgent.Add(
             new ProductInfoHeaderValue(
                 "ToastifyReloaded",
-                "1.4.2"));
+                "1.4.3"));
 
         _http.DefaultRequestHeaders.Accept.Add(
             new MediaTypeWithQualityHeaderValue(

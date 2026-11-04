@@ -2,6 +2,13 @@
 
 Published releases are listed in [GitHub Releases](https://github.com/MarliusLab/Toastify-Reloaded/releases). Historical tags are preserved.
 
+## 1.3.13 / 1.4.3-linux / 1.5.0-macos-rc.4 - in preparation
+
+- Reproduced the actual NSIS `System.dll` collision under Windows PowerShell 5.1 x86 and x64. Compile the desktop-user launcher from the trusted CLR directory with absolute framework references, restore both working directories, and retain the non-elevated restart requirement.
+- Separate successful installation from restart-helper import, compilation or launch errors. Windows reports manual startup after a committed install; Linux legacy AppImage/DEB results retain installed success after a failed restart; macOS preserves committed replacement through backup-cleanup failures and records restart failures separately. Pre-installation failures and rollback errors remain failures.
+- Preserve the saved Show Toast shortcut's visibility-only behavior: a delayed next press requests Lyrics Plus whenever a toast is still visible, without a double-tap deadline. Add shared and real WPF regression coverage; preserve configured duration and Alt+Shift+J's separate destination.
+- Declare the GLib command tools required by Linux toast shortcuts in both DEBs. Add native Linux/Mac patch-only reconstruction and corrupt-delta probes against verified previous public baselines; no installation or application launch is part of those tests.
+
 ## 1.3.12 / 1.4.2-linux / 1.5.0-macos-rc.3 - 2026-11-04
 
 - Ported Lyrics Plus toast clicks, keyboard activation and the saved Show Toast shortcut's contextual behavior to Linux and macOS. First press shows the toast; another press while a toast is visible requests the fixed Lyrics Plus page. Existing settings and playback controls are retained. Lyrics Plus must already be applied in Spotify.

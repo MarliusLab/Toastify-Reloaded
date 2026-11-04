@@ -7,7 +7,7 @@ namespace ToastifyReloaded.Mac.Services;
 
 public sealed partial class MacUpdateService
 {
-    public const string CurrentTag = "v1.5.0-macos-rc.3";
+    public const string CurrentTag = "v1.5.0-macos-rc.4";
 
     public static readonly MacReleaseVersion CurrentVersion =
         ParseTag(CurrentTag)

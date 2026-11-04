@@ -83,6 +83,7 @@ public sealed class LinuxUpdateInstallerService
             progress?.Report(new(UpdateOperationStage.Ready, Message: "Pacchetto pronto per l'installazione manuale."));
             return new(true, false, "Aggiornamento verificato e scaricato: " + path, path);
         }
+        var installed = false;
         try
         {
             if (downloaded.Kind == LinuxInstallKind.AppImage)
@@ -103,9 +104,11 @@ public sealed class LinuxUpdateInstallerService
                     // until the complete verified replacement is available.
                     File.Copy(current, current + ".previous", overwrite: true);
                     File.Move(staged, current, overwrite: true);
-                    var start = LinuxRestartHandoff.CreateStartInfo(current, Environment.ProcessId, restartMinimized);
-                    if (Process.Start(start) is null) throw new IOException("Riavvio AppImage non avviato.");
-                    return new(true, true, "AppImage aggiornata; riavvio avviato.", current);
+                    installed = true;
+                    var restart = LinuxRestartHandoff.RequestAfterInstall("AppImage aggiornata", current, () =>
+                        Process.Start(LinuxRestartHandoff.CreateStartInfo(current, Environment.ProcessId, restartMinimized)) is not null);
+                    ReportCompleted(progress, restart.Message);
+                    return restart;
                 }
                 finally { if (File.Exists(staged)) File.Delete(staged); }
             }
@@ -120,19 +123,31 @@ public sealed class LinuxUpdateInstallerService
                 CancellationToken.None, TimeSpan.FromMinutes(5));
             if (result.ExitCode != 0)
                 return new(false, false, string.IsNullOrWhiteSpace(result.StdErr) ? "Installazione .deb non riuscita." : result.StdErr, path);
-            progress?.Report(new(UpdateOperationStage.Completed));
+            installed = true;
             const string launcher = "/usr/bin/toastify-reloaded";
-            if (!File.Exists(launcher)) return new(true, false, "Pacchetto .deb aggiornato.", path);
-            var launch = LinuxRestartHandoff.CreateStartInfo(launcher, Environment.ProcessId, restartMinimized);
-            var restart = Process.Start(launch);
-            return new(true, restart is not null, "Pacchetto .deb aggiornato; riavvio richiesto.", path);
+            var debRestart = LinuxRestartHandoff.RequestAfterInstall("Pacchetto .deb aggiornato", path, () =>
+                File.Exists(launcher) && Process.Start(LinuxRestartHandoff.CreateStartInfo(launcher, Environment.ProcessId, restartMinimized)) is not null);
+            ReportCompleted(progress, debRestart.Message);
+            return debRestart;
         }
-        catch (OperationCanceledException) { throw; }
+        catch (OperationCanceledException) when (!installed) { throw; }
         catch (Exception error)
         {
+            if (installed)
+            {
+                var message = LinuxRestartHandoff.ManualRestartMessage("Aggiornamento Linux installato") + " Dettagli: " + error.Message;
+                ReportCompleted(progress, message);
+                return new(true, false, message, path, Installed: true);
+            }
             progress?.Report(new(UpdateOperationStage.Failed, Message: error.Message));
             return new(false, false, error.Message, path);
         }
+    }
+
+    private static void ReportCompleted(IProgress<UpdateOperationProgress>? progress, string message)
+    {
+        try { progress?.Report(new(UpdateOperationStage.Completed, Message: message)); }
+        catch (Exception) { /* Observers cannot turn a committed install into a failure. */ }
     }
 
     private static LinuxInstallKind DetectInstallKind()

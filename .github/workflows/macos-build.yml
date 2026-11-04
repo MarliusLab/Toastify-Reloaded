@@ -111,6 +111,34 @@ jobs:
           grep -Eiq 'x86_64|x86-64' "$RUNNER_TEMP/x64-file.txt"
           grep -Eiq 'arm64|aarch64' "$RUNNER_TEMP/arm64-file.txt"
 
+      - name: Verify native ARM64 delta reconstruction without installing
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = arm64
+          VERSION="$(cat dist/macos/package-version.txt)"
+          TARGET="dist/velopack/osx-arm64/ToastifyReloadedMac-$VERSION-osx-arm64-full.nupkg"
+          BASES=()
+          for candidate in dist/velopack/osx-arm64/*-full.nupkg; do
+            if [[ "$candidate" != "$TARGET" ]]; then BASES+=("$candidate"); fi
+          done
+          [[ "${#BASES[@]}" -eq 1 ]]
+          python3 scripts/test-native-portable-delta.py \
+            --helper "dist/macos/osx-arm64/Toastify Reloaded.app/Contents/MacOS/UpdateMac" \
+            --old "${BASES[0]}" \
+            --delta "dist/velopack/osx-arm64/ToastifyReloadedMac-$VERSION-osx-arm64-delta.nupkg" \
+            --target "$TARGET" \
+            --output-directory dist/macos/native-delta-probe
+
+      - name: Upload isolated native delta diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-native-delta-diagnostics
+          path: |
+            dist/macos/native-delta-probe/*.log
+            dist/macos/native-delta-probe/*-console.txt
+          if-no-files-found: ignore
+
       - name: Native macOS app startup smoke test
         run: ./scripts/test-macos-gui.sh
 

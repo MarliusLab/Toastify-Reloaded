@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ARCH="${1:-x64}"
-VERSION="${2:-1.4.2}"
+VERSION="${2:-1.4.3}"
 case "$ARCH" in x64|arm64) ;; *) echo "Unsupported Linux architecture: $ARCH" >&2; exit 1 ;; esac
 [[ "$(uname -s)" == Linux ]] || { echo "Velopack AppImages must be packaged on Linux." >&2; exit 1; }
 RUNTIME="linux-$ARCH"

@@ -34,9 +34,12 @@ internal static class ToastShowHotkeyTests
         first.Show(); second.Show();
         try
         {
+            // A second press is contextual for the entire visible lifetime,
+            // not limited to a fast double-tap interval.
+            await Task.Delay(1200);
             await controller.ExecuteAsync(Show);
             check(firstLyrics == 0 && secondLyrics == 1 && nowPlaying == 0 && shows == 1,
-                "the second Show Toast press requests Lyrics Plus on the newest visible toast without making another");
+                "a delayed second Show Toast press requests Lyrics Plus on the newest visible toast without making another");
             second.Hide();
             await controller.ExecuteAsync(Show);
             check(firstLyrics == 1 && secondLyrics == 1 && shows == 1,

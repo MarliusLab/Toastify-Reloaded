@@ -182,5 +182,6 @@ var macException = new Mac.SpotifyTrackOpenService((_, _, _) => throw new Operat
 Check(!(await macException.OpenAsync(uri)).Success, "Mac canceled launcher is crash-safe");
 await LinuxLyricsTests.RunAsync(Check);
 await MacLyricsTests.RunAsync(Check);
+await MacUpdateHandoffTests.RunAsync(Check);
 await CrossMaintenanceTests.RunAsync(Check);
 Console.WriteLine($"TRACK LINK TEST RESULT: PASS ({passed})");

@@ -494,6 +494,12 @@ public partial class MainWindow : Window
             Find<TextBlock>("UpdateStatusText").Text =
                 result.Message;
 
+            if (result.Installed)
+            {
+                _availableUpdate = null;
+                Find<Button>("InstallUpdateButton").IsEnabled = false;
+            }
+
             if (result.Success &&
                 result.RestartStarted)
             {
