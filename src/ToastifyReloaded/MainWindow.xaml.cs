@@ -28,7 +28,7 @@ public partial class MainWindow : Window
     private readonly SpotifySessionService _spotify = new();
     private readonly SpotifyInstallationService _spotifyInstallation = new();
     private readonly CompatibilityRepairService _compatibility = new();
-    private readonly UpdateService _updateService;
+    private readonly WindowsUpdateService _updateService;
     private readonly DispatcherTimer _pollTimer;
     private readonly DispatcherTimer _compatibilityTimer;
     private readonly DispatcherTimer _updateTimer;
@@ -49,10 +49,11 @@ public partial class MainWindow : Window
     {
     }
 
-    internal MainWindow(bool maintenanceTestMode, UpdateService? updateService = null)
+    internal MainWindow(bool maintenanceTestMode, UpdateService? updateService = null,
+        WindowsUpdateService? windowsUpdateService = null)
     {
         _maintenanceTestMode = maintenanceTestMode;
-        _updateService = updateService ?? new UpdateService();
+        _updateService = windowsUpdateService ?? new WindowsUpdateService(legacy: updateService);
         _settingsService = maintenanceTestMode
             ? new SettingsService(Path.Combine(Path.GetTempPath(), "Toastify-maintenance-preview-" + Guid.NewGuid().ToString("N")))
             : new SettingsService();
@@ -570,7 +571,7 @@ public partial class MainWindow : Window
                 return false;
             if (!allowAutomaticInstall || (!_settings.AutoInstallToastifyUpdates && !forceInstall))
                 return false;
-            if (string.IsNullOrWhiteSpace(result.DownloadUrl))
+            if (!_updateService.IsVelopackInstalled && string.IsNullOrWhiteSpace(result.DownloadUrl))
             {
                 UpdateStatusText.Text = MaintenanceText("No installer is available for this architecture.",
                     "Non è disponibile un installer per questa architettura.");
@@ -584,13 +585,15 @@ public partial class MainWindow : Window
                 cancellationToken: _updateCancellation.Token, progress: progress);
             if (!started)
             {
-                UpdateStatusText.Text = MaintenanceText("The installer could not be started. Please retry.",
-                    "Impossibile avviare l'installer. Riprova.");
+                UpdateStatusText.Text = MaintenanceText("The update could not be started. Please retry.",
+                    "Impossibile avviare l'aggiornamento. Riprova.");
                 return false;
             }
 
-            UpdateStatusText.Text = MaintenanceText("Installation started. Follow the installer progress bar.",
-                "Installazione avviata. Segui la barra nella finestra dell'installer.");
+            UpdateStatusText.Text = _updateService.IsVelopackInstalled
+                ? MaintenanceText("Update prepared. Toastify will restart.", "Aggiornamento preparato. Toastify verrà riavviato.")
+                : MaintenanceText("Installation started. Follow the installer progress bar.",
+                    "Installazione avviata. Segui la barra nella finestra dell'installer.");
             _reallyExit = true;
             // Close every toast window as well, releasing this PID immediately
             // so the installer can replace files without waiting on a popup.

@@ -22,6 +22,8 @@ Desktop.ini
 *.log
 
 # Local build tools
+.tools/
+.dotnet-cli/
 .dotnet-home/
 .nuget-packages/
 __pycache__/

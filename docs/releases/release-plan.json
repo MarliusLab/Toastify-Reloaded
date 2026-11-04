@@ -1,5 +1,5 @@
 {
-  "windows": {"tag": "v1.3.9"},
+  "windows": {"tag": "v1.3.10"},
   "linux": {"tag": "v1.4.1-linux"},
   "macos": {"tag": "v1.5.0-macos-rc.2"}
 }

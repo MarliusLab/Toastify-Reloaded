@@ -5,13 +5,14 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <StartupObject>ToastifyReloaded.Program</StartupObject>
     <UseWindowsForms>true</UseWindowsForms>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <AssemblyName>ToastifyReloaded</AssemblyName>
     <RootNamespace>ToastifyReloaded</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Resources\ToastifyIcon.ico</ApplicationIcon>
-    <Version>1.3.9</Version>
+    <Version>1.3.10</Version>
     <Authors>Toastify Reloaded contributors</Authors>
     <Description>Toastify Reloaded - Windows companion for Spotify with global hotkeys, track popups and Spicetify Lyrics Plus integration.</Description>
   </PropertyGroup>
@@ -35,6 +36,7 @@
     <Compile Include="../ToastifyReloaded.Shared/WindowsReleaseVersion.cs" Link="Shared/WindowsReleaseVersion.cs" />
     <Compile Include="../ToastifyReloaded.Shared/SpotifyTrackLink.cs" Link="Shared/SpotifyTrackLink.cs" />
     <PackageReference Include="Extended.Wpf.Toolkit" Version="5.1.2" />
+    <PackageReference Include="Velopack" Version="1.2.161" />
   </ItemGroup>
 
   <ItemGroup>

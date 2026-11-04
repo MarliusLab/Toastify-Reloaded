@@ -2,6 +2,16 @@
 
 Published releases are listed in [GitHub Releases](https://github.com/MarliusLab/Toastify-Reloaded/releases). Historical tags are preserved.
 
+## 1.3.10 - prepared for Windows publication after CI
+
+- Added pinned Velopack 1.2.161 startup before WPF/mutex initialization and an updater facade that retains the legacy installer path for installations that have not migrated.
+- Added per-machine MSI and compatibility Setup packages for x64/ARM64, retaining the original installation directory, stable launcher, enabled/disabled startup preference and `%APPDATA%` settings. Legacy NSIS registration is retired only after successful migration; installer failure restores the legacy executable/uninstaller backup.
+- Added per-architecture package feeds, full baselines and automatic generation of future deltas from a verified previous release. The first transition includes its full base and has no fabricated delta from a legacy installer.
+- Added cancellable package download/preparation progress, bounded HTTP/native-patch waits, verified delta/native reconstruction and full fallback. Equivalent reconstructed ZIPs are verified through the native patch engine and an in-memory receipt rather than incorrectly comparing their archive bytes with the original full ZIP.
+- Added a protected seed import into the normal user's package cache, stable launcher startup paths, non-elevated restart and an application-running preflight. Existing toast, Now Playing, hotkeys, Spotify/Spicetify maintenance and settings behavior are preserved.
+- Updated native build/release gates to validate package identity, architecture, feeds and hashes, exercise synthetic/native delta paths and upload a private draft before publishing only after every required asset is verified. Historical releases keep their original asset contracts and tags.
+- Automated installation tests use fake process/registry operations. Real elevated migration, rollback and subsequent installed-client update acceptance remain separate; no installer was executed on the development host.
+
 ## 1.3.9 - 2026-11-03 (Windows stable patch)
 
 - Added Spotify's Go to Now Playing (`Alt+Shift+J`) after opening/restoring Spotify from a toast click or its Enter/Space action. This navigates to the currently playing item, without sending play/pause, skip, seek or a track URI.

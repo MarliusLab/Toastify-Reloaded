@@ -56,7 +56,7 @@ The current Windows updater queries GitHub Releases, filters stable Windows rele
 
 The complete installer is downloaded to a temporary file with byte/percentage progress, cancellation and bounded waits. The app checks the executable structure and starts the installer through Windows elevation. The NSIS updater waits on the exact original Toastify process before replacing files, displays native installation progress and can restart the app with its minimized preference. Downloading/verifying and installer execution have separate progress states.
 
-Windows 1.3.9 still uses this installer-based mechanism. App-only or differential (delta) update packages are not implemented. See [Windows maintenance and upgrade behavior](WINDOWS_MAINTENANCE.md) for limits and verification scope.
+Windows 1.3.9 and non-migrated installations use this installer mechanism. The 1.3.10 transition adds a Velopack facade: migrated installations use per-architecture package feeds and full/delta downloads, while older installations receive the compatibility Setup. Settings and preferences remain in the same location. See [Velopack transition and verification](WINDOWS_VELOPACK.md) and [Windows maintenance](WINDOWS_MAINTENANCE.md).
 
 Settings are stored separately in `%APPDATA%\ToastifyReloaded` and survive application updates.
 

@@ -54,6 +54,8 @@ Version 1.3.9 adds **Go to Now Playing** after a toast click and through **Alt+S
 
 Toast clicks support keyboard activation and safe fallbacks. See [Windows toast shortcuts and verification limits](docs/WINDOWS_TOAST.md).
 
+Windows **1.3.10 is prepared for publication after CI** as the one-time transition to Velopack. Its compatibility Setup preserves the installation directory and settings. Subsequent updates use full/delta packages from inside the app. The first bridge includes the full base and is larger; delta savings begin with later releases. See [Velopack migration and update behavior](docs/WINDOWS_VELOPACK.md).
+
 If a running 1.3.5/1.3.6 is already stuck updating, choose **Exit** from the Toastify tray menu and run the new installer manually once. See [Windows maintenance and progress](docs/WINDOWS_MAINTENANCE.md).
 
 ### Linux — stable 1.4.1

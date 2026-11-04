@@ -56,7 +56,7 @@ public partial class MainWindow
         UpdateProgressPanel.Visibility = Visibility.Visible;
         CancelUpdateButton.IsEnabled = progress.CanCancel;
         CancelUpdateButton.Visibility = progress.CanCancel ? Visibility.Visible : Visibility.Collapsed;
-        UpdateProgressBar.IsIndeterminate = progress.Phase is UpdatePhase.Verifying or UpdatePhase.WaitingForPermission ||
+        UpdateProgressBar.IsIndeterminate = progress.Phase is UpdatePhase.Verifying or UpdatePhase.WaitingForPermission or UpdatePhase.LaunchingUpdater ||
             (progress.Phase == UpdatePhase.Downloading && progress.Percent is null);
         if (progress.Phase != UpdatePhase.Downloading)
             UpdateProgressBar.Value = 100;
@@ -65,17 +65,29 @@ public partial class MainWindow
 
         UpdateStatusText.Text = progress.Phase switch
         {
+            UpdatePhase.Downloading when progress.IsPackageUpdate && progress.Percent is { } value => MaintenanceText(
+                $"Downloading and preparing update: {value:0}%", $"Download e preparazione aggiornamento: {value:0}%"),
+            UpdatePhase.Downloading when progress.IsPackageUpdate => MaintenanceText(
+                "Downloading and preparing the update…", "Download e preparazione dell'aggiornamento…"),
             UpdatePhase.Downloading when progress.Percent is { } value => MaintenanceText(
                 $"Downloading: {value:0}% — {FormatDownloadSize(progress.BytesReceived)} / {FormatDownloadSize(progress.TotalBytes!.Value)}",
                 $"Download: {value:0}% — {FormatDownloadSize(progress.BytesReceived)} / {FormatDownloadSize(progress.TotalBytes!.Value)}"),
             UpdatePhase.Downloading => MaintenanceText(
                 $"Downloading: {FormatDownloadSize(progress.BytesReceived)} received (total size unavailable)",
                 $"Download: {FormatDownloadSize(progress.BytesReceived)} ricevuti (dimensione totale non disponibile)"),
+            UpdatePhase.Verifying when progress.IsPackageUpdate => MaintenanceText(
+                "Verifying the update package…", "Verifica del pacchetto di aggiornamento…"),
             UpdatePhase.Verifying => MaintenanceText(
                 "Download complete. Verifying the installer…", "Download completato. Verifica dell'installer…"),
+            UpdatePhase.WaitingForPermission when progress.IsPackageUpdate => MaintenanceText(
+                "Preparing to apply the update. Confirm any Windows permission request.",
+                "Preparazione dell'aggiornamento. Conferma l'eventuale richiesta di autorizzazione di Windows."),
             UpdatePhase.WaitingForPermission => MaintenanceText(
                 "Download complete. Confirm the Windows permission request to install the update.",
                 "Download completato. Conferma la richiesta di Windows per installare l'aggiornamento."),
+            UpdatePhase.LaunchingUpdater => MaintenanceText(
+                "Applying update. Toastify will restart with your existing settings.",
+                "Applicazione dell'aggiornamento. Toastify verrà riavviato con le impostazioni esistenti."),
             _ => MaintenanceText(
                 "Installation started. Follow the progress bar in the installer window.",
                 "Installazione avviata. Segui la barra nella finestra dell'installer.")
