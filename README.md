@@ -28,22 +28,22 @@ The project keeps the recognizable Toastify workflow and notification style whil
 
 | Platform | Current release | Channel |
 |---|---|---|
-| Windows | `v1.3.10` | Stable |
+| Windows | `v1.3.11` | Stable |
 | Linux | `v1.4.1-linux` | Stable |
 | macOS | `v1.5.0-macos-rc.2` | Release candidate; not stable |
 
 These releases are published in [GitHub Releases](https://github.com/MarliusLab/Toastify-Reloaded/releases), with platform packages, release notes and SHA-256 checksums. Windows and Linux are stable; macOS RC2 remains a prerelease. Existing tags are preserved.
 
-> **Prepared in source: Windows 1.3.11; local validation passed, native CI and publication pending.** Toast clicks request Lyrics Plus for Spotify's current song. The configured Show Toast shortcut first shows the toast, then opens Lyrics Plus if a toast is still visible. **Alt+Shift+J retains Go to Now Playing**. Lyrics Plus must already be enabled and applied. The published Windows download remains **1.3.10** until the new release passes its gates. See [Windows toast behavior](docs/WINDOWS_TOAST.md).
+> **[Windows 1.3.11 is published](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.3.11).** Toast clicks request Lyrics Plus for Spotify's current song. The configured Show Toast shortcut first shows the toast, then opens Lyrics Plus while any toast is visible; after expiration/hide it shows a toast again. **Alt+Shift+J retains Go to Now Playing**. Lyrics Plus must already be enabled and applied. See [Windows toast behavior](docs/WINDOWS_TOAST.md).
 
 
 ---
 
 ## Download
 
-### Windows — stable 1.3.10
+### Windows — stable 1.3.11
 
-[Windows v1.3.10 release page](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.3.10)
+[Windows v1.3.11 release page](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.3.11)
 
 Windows installer packages:
 
@@ -52,15 +52,15 @@ Windows installer packages:
 
 Windows checksums: `SHA256SUMS-Windows.txt`. Use the compatibility Setup above for the transition; the release also contains the underlying MSI/full packages and update feeds.
 
-**Install the transition once.** Its larger download includes the full base required for future deltas. Later updates use full/delta packages within Toastify and restart the app. Settings remain in their existing AppData folder. Program Files installations can still require Windows permission.
+**Already on Velopack 1.3.10?** Update inside Toastify: 1.3.11 provides a delta for each architecture, with full-package fallback. Older NSIS installations need the compatibility Setup once; its larger download includes the full base. Settings remain in their existing AppData folder. Program Files installations can still require Windows permission.
 
-Version 1.3.10 retains **Go to Now Playing** from toast clicks and **Alt+Shift+J while a toast is visible**, introduced in 1.3.9, and the Spotify/Spicetify maintenance fixes from 1.3.7. Package download/preparation shows progress and cancellation; existing settings and legacy update compatibility are preserved.
+Version 1.3.11 retains the Spotify/Spicetify maintenance fixes, Velopack package updater, download/preparation progress and cancellation. Existing settings and legacy update compatibility are preserved.
 
-The prepared **1.3.11** changes clicks on either text line, artwork or background and Enter/Space on focused text to **Lyrics Plus**. Your configured **Show Toast** shortcut (default Ctrl+Alt+T) shows a toast when none is visible; pressing it while any toast is visible requests Lyrics Plus instead. After all toasts expire or hide, the next press shows a toast again. The saved keys are reused without changing settings. The Lyrics Plus action requests a fixed page without injecting a navigation shortcut. **Alt+Shift+J while a toast is visible keeps Go to Now Playing**, even if assigned to Show Toast or another user action; other Show Toast combinations use the contextual behavior above. Ctrl+drag and existing settings remain available; clicking does not enable or repair Spicetify. See [Windows toast shortcuts, requirements and verification limits](docs/WINDOWS_TOAST.md).
+Version **1.3.11** changes clicks on either text line, artwork or background and Enter/Space on focused text to **Lyrics Plus**. Your configured **Show Toast** shortcut (default Ctrl+Alt+T) shows a toast when none is visible; pressing it while any toast is visible requests Lyrics Plus instead. After all toasts expire or hide, the next press shows a toast again. The saved keys are reused without changing settings. The Lyrics Plus action requests a fixed page without injecting a navigation shortcut. **Alt+Shift+J while a toast is visible keeps Go to Now Playing**, even if assigned to Show Toast or another user action; other Show Toast combinations use the contextual behavior above. Ctrl+drag and existing settings remain available; clicking does not enable or repair Spicetify. See [Windows toast shortcuts, requirements and verification limits](docs/WINDOWS_TOAST.md).
 
-Local validation of the prepared version passed **317 Windows checks**, **140 shared assertions**, **19 release guards**, **17 feed/publication tests**, **10 recovery tests** and the classic WPF layout contract. Native CI, publication and installed 1.3.11 interaction remain pending; the real-client Lyrics Plus service probe is documented separately in the toast guide.
+Validation passed **317 Windows checks**, **140 shared assertions**, **19 release guards**, **17 feed/publication tests**, **10 recovery tests** and the classic WPF layout contract. The [release workflow 41827896540](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41827896540) published source `a39bb4175299a66bbaa241fcb36c1f3dcf55c38c`. Both x64 and ARM64 package sets passed native CI and publication verification: 13 uploaded assets, including 2 deltas from the verified 1.3.10 baseline, matching feeds and SHA-256 checksums. Full-package fallback remains available. Installed 1.3.11 interaction remains pending; the real-client Lyrics Plus service probe is documented separately in the toast guide.
 
-See [Velopack migration and update behavior](docs/WINDOWS_VELOPACK.md) for the one-time bridge, full/delta fallback and verification scope. Delta savings begin when later releases provide deltas against this first full baseline.
+See [Velopack migration and update behavior](docs/WINDOWS_VELOPACK.md) for the one-time bridge, full/delta fallback and verification scope. Version 1.3.11 supplies verified deltas from the 1.3.10 full baseline for both architectures: about **260 KB** each, compared with 78-82 MB for the full packages.
 
 If a running 1.3.5/1.3.6 is already stuck updating, choose **Exit** from the Toastify tray menu and run the new installer manually once. See [Windows maintenance and progress](docs/WINDOWS_MAINTENANCE.md).
 
@@ -1100,11 +1100,11 @@ Toastify-Reloaded/
 ## Platform status
 ### Click a toast title or artist
 
-**Windows 1.3.11, prepared and not yet published:** toast title, artist, artwork/background clicks and Enter/Space on focused text request **Lyrics Plus**. Its page follows Spotify's current player item; it does not select an older toast's track. Lyrics Plus must already be enabled and applied through Spicetify, and lyric availability depends on the song/provider. The Lyrics Plus action sends no playback command or synthetic navigation keys and does not repair or restart Spotify. **Alt+Shift+J while a toast is visible retains Go to Now Playing**, separately from Lyrics Plus. A successful protocol request is not visual confirmation of the lyrics page. Ctrl+drag and settings are preserved. See [Windows toast behavior](docs/WINDOWS_TOAST.md).
+**Windows 1.3.11:** toast title, artist, artwork/background clicks and Enter/Space on focused text request **Lyrics Plus**. Its page follows Spotify's current player item; it does not select an older toast's track. Lyrics Plus must already be enabled and applied through Spicetify, and lyric availability depends on the song/provider. The Lyrics Plus action sends no playback command or synthetic navigation keys and does not repair or restart Spotify. **Alt+Shift+J while a toast is visible retains Go to Now Playing**, separately from Lyrics Plus. A successful protocol request is not visual confirmation of the lyrics page. Ctrl+drag and settings are preserved. See [Windows toast behavior](docs/WINDOWS_TOAST.md).
 
 The saved **Show Toast** shortcut also reuses that Lyrics Plus action while any toast is visible. With no visible toast it shows one, and after expiration/hide it returns to showing one on the next press. This works with the configured key combination rather than requiring a new assignment.
 
-**Windows 1.3.9 and the published 1.3.10:** both toast clicks and the scoped shortcut request Spotify's **Go to Now Playing**. The prepared 1.3.11 changes the click/Enter/Space action while preserving the shortcut's existing destination.
+**Windows 1.3.9 and 1.3.10:** both toast clicks and the scoped shortcut request Spotify's **Go to Now Playing**. Version 1.3.11 changes the click/Enter/Space action while preserving the shortcut's existing destination.
 
 Linux 1.4.1 and macOS 1.5.0 RC2 include keyboard accessible title and artist links to the **track shown in that toast**. The player supplies a Spotify catalog track URI or URL in the same metadata snapshot; a change of song cannot attach another track to the displayed text. Toastify sends a navigation link and does not issue a play/pause or seek command. Spotify determines how the link is handled.
 
@@ -1114,13 +1114,13 @@ See [verified platform status and remaining validation](docs/PLATFORM_STATUS.md)
 
 | Platform | Status | Distribution |
 |---|---|---|
-| Windows x64 | Stable 1.3.10 release available | Installer |
-| Windows ARM64 | Stable 1.3.10 release available | Installer |
+| Windows x64 | Stable 1.3.11 release available | Setup / MSI / package updates |
+| Windows ARM64 | Stable 1.3.11 release available | Setup / MSI / package updates |
 | Linux x64 | Stable 1.4.1 release available | AppImage / `.deb` / tar.gz |
 | Linux ARM64 | Stable 1.4.1 release available; cross-built | `.deb` / tar.gz |
 | macOS x64 / Apple Silicon | 1.5.0 RC2 release available; stable acceptance pending | ZIP / DMG |
 
-Release tags: **`v1.3.10`**, **`v1.4.1-linux`**, **`v1.5.0-macos-rc.2`**.
+Release tags: **`v1.3.11`**, **`v1.4.1-linux`**, **`v1.5.0-macos-rc.2`**.
 
 ---
 

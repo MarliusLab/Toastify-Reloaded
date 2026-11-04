@@ -1,6 +1,6 @@
 # Windows 1.3.7 maintenance update
 
-Current Windows release: **[`v1.3.10`](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.3.10)**. Both compatibility installers retain the maintenance/toast fixes below and introduce the [Velopack transition](WINDOWS_VELOPACK.md). The first download is larger; subsequent updates use packages/deltas when available. Their checksum manifest is published alongside the packages.
+Current Windows release: **[`v1.3.11`](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.3.11)**. It retains the maintenance fixes below and the [Velopack updater introduced in 1.3.10](WINDOWS_VELOPACK.md). Toast clicks/Enter/Space open Lyrics Plus; the configured Show Toast shortcut uses its visible-toast second action, while scoped Alt+Shift+J keeps Go to Now Playing. Both x64 and ARM64 package sets passed native CI and publication verification: 13 uploaded assets, including 2 deltas from the verified 1.3.10 baseline, matching feeds and SHA-256 checksums. Full-package fallback remains available.
 
 The installer-update details and validation table below record the legacy path. Migrated installations use the package updater described in [Windows Velopack updates](WINDOWS_VELOPACK.md).
 
@@ -9,8 +9,8 @@ The installer-update details and validation table below record the legacy path. 
 The fixes below run inside 1.3.7. An older running program continues using its older downloader and cannot acquire the new progress/timeout behavior until it is replaced.
 
 1. Right-click the Toastify Reloaded system-tray icon and choose **Exit**. Closing Settings with its X button only hides it. If the old application does not respond, end only ToastifyReloaded.exe in Task Manager before running the installer.
-2. Open the [Windows v1.3.10 release](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.3.10) and download the installer matching the device: `ToastifyReloaded-Setup-win-x64.exe` or `ToastifyReloaded-Setup-win-arm64.exe`.
-3. Run that installer manually and confirm the normal Windows permission request. Let its installation progress finish, then start Toastify Reloaded 1.3.10.
+2. Open the [Windows v1.3.11 release](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.3.11) and download the installer matching the device: `ToastifyReloaded-Setup-win-x64.exe` or `ToastifyReloaded-Setup-win-arm64.exe`.
+3. Run that installer manually and confirm the normal Windows permission request. Let its installation progress finish, then start Toastify Reloaded 1.3.11.
 4. Open **Reloaded** and check the displayed application, Spotify and Spicetify versions. Subsequent update downloads use the new progress and cancellation behavior.
 
 The existing configuration remains in `%APPDATA%\ToastifyReloaded\settings.json`. No settings migration or removal is required. Themes, hotkeys, playback controls, automatic maintenance choices and startup preferences are preserved.
@@ -71,3 +71,9 @@ No actual installer or Windows elevation prompt was launched during local tests.
 [Windows release workflow 41629987353](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41629987353) passed for commit `689f4f7e6c79e3d3b42fbd940dc7049d98f94762`. Both x64 and ARM64 installers and SHA256SUMS-Windows.txt are published; their uploaded digests match the public checksum manifest.
 
 A real 51,746,692-byte download of the published Windows 1.3.6 installer also completed through the new downloader in about 232 seconds, with 1,270 progress reports and a simulated handoff. No installer or elevation prompt was launched. The user's settings file remained identical to its distinct pre-test backup.
+
+## Windows 1.3.11 publication and remaining acceptance
+
+The [release workflow 41827896540](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41827896540) published source `a39bb4175299a66bbaa241fcb36c1f3dcf55c38c` after native validation of 317 Windows regression checks, 140 shared assertions, 34 synthetic migration checks, 19 release guards, 17 feed/publication tests, 10 recovery tests and the classic WPF layout contract. Both x64 and ARM64 package sets passed native CI and publication verification: 13 uploaded assets, including 2 deltas from the verified 1.3.10 baseline, matching feeds and SHA-256 checksums. Full-package fallback remains available. Settings remain in their existing folder and no shortcut assignment is rewritten.
+
+Installed 1.3.11 toast clicks, the configured Show Toast two-press action and scoped Alt+Shift+J during active playback still require direct acceptance testing. A separate production-service probe opened the Lyrics Plus page on real Spotify and preserved the paused state and position; that narrower result does not establish those installed interactions. Lyrics Plus must already be applied; clicks do not enable, repair or restart Spotify. See [Windows toast behavior](WINDOWS_TOAST.md).

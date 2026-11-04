@@ -2,14 +2,15 @@
 
 Published releases are listed in [GitHub Releases](https://github.com/MarliusLab/Toastify-Reloaded/releases). Historical tags are preserved.
 
-## 1.3.11 - prepared, native CI and publication pending (Windows)
+## 1.3.11 - 2026-11-04 (Windows stable update)
 
 - Changed toast title, artist, artwork and background clicks and Enter/Space activation to request Lyrics Plus for Spotify's current player item through the fixed `spotify:app:lyrics-plus` page. Alt+Shift+J while a toast is visible retains Go to Now Playing.
 - Made the configured Show Toast shortcut show a toast when none is visible and request Lyrics Plus while any toast remains visible. After expiration/hide, the next press shows a toast again. Existing configured keys are reused; no setting is rewritten or new shortcut required. Alt+Shift+J retains visible-toast Now Playing precedence even if assigned to Show Toast or another user action.
 - Kept protocol/window work off the UI thread, bounded held-input guards, shared activation serialization, close cancellation and temporary hotkey ownership. Lyrics Plus waits for held keyboard input, including a custom Show Toast combination, and mouse triggers to be released before dispatch/focus. A foreign owner of Alt+Shift+J can prevent its global registration/forwarding while click and Enter/Space still request Lyrics Plus; the Lyrics Plus action sends no synthetic keys.
 - Preserved Ctrl+drag, existing settings, playback controls and maintenance choices. Clicking does not enable/apply/repair Spicetify or restart Spotify. Lyrics Plus must already be applied; providers may not return lyrics for every song. Protocol acceptance is distinct from a visually confirmed lyrics page.
-- Retained the Now Playing service for the scoped shortcut and its historical tests. Windows 1.3.10 remains the published stable download.
-- Local validation passed 317 Windows regression checks, including real SDK/native patch fixtures, 140 shared assertions, 19 release guards, 17 feed/publication tests, 10 recovery tests and the classic WPF layout contract. A production-service probe opened the Lyrics Plus page on real Spotify; the paused state and position were unchanged. Lyrics for the current song were unavailable. Native CI/publication, installed 1.3.11 interaction and continuity while actively playing remain pending.
+- Retained the Now Playing service for the scoped shortcut and its historical tests. Existing published releases and tags are preserved.
+- Local and native CI validation passed 317 Windows regression checks, including real SDK/native patch fixtures, 140 shared assertions, 19 release guards, 17 feed/publication tests, 10 recovery tests and the classic WPF layout contract. A production-service probe opened the Lyrics Plus page on real Spotify; the paused state and position were unchanged. Lyrics for the current song were unavailable. Installed 1.3.11 clicks, contextual Show Toast presses, scoped Alt+Shift+J and continuity while actively playing remain pending.
+- Published from `a39bb4175299a66bbaa241fcb36c1f3dcf55c38c` by [release workflow 41827896540](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41827896540). Both x64 and ARM64 package sets passed native CI and publication verification: 13 uploaded assets, including 2 deltas from the verified 1.3.10 baseline, matching feeds and SHA-256 checksums. Full-package fallback remains available.
 - See [Windows toast behavior, requirements and history](docs/WINDOWS_TOAST.md).
 
 ## 1.3.10 - 2026-11-04 (Windows transition release)
