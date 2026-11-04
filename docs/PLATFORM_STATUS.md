@@ -1,16 +1,16 @@
 # Implementation, releases and validation status
 
-## Releases published on 2026-11-03
+## Published releases as of 2026-11-04
 
 | Platform | Published version/tag | Scope | Publication state |
 |---|---|---|---|
-| Windows x64 / ARM64 | Stable `v1.3.9` | Now Playing from click/Alt+Shift+J while a toast is visible; settings preserved | Published; release workflow passed |
+| Windows x64 / ARM64 | Transition `v1.3.10` | Velopack package/delta updater, compatibility bridge and preserved settings/features | Published; release workflow passed |
 | Linux x64 / ARM64 | Stable `v1.4.1-linux` | Clickable title/artist links, safe metadata/openers, regression and release gates | Published; release workflow passed |
 | macOS Intel / Apple Silicon | Prerelease `v1.5.0-macos-rc.2` | Same track links, corrected RC self-test, reliable DMG sizing and native startup gate | Published; release workflow passed |
 
-Windows 1.3.9 passed its [release workflow 41648205388](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41648205388) for commit `892faf3af2706303997579fe2c3a3e140dae495b`. Linux 1.4.1 and macOS RC2 remain at their tested commit `fc11dfb30ebb0846ed41fea473c76adadb117804`, with their original assets unchanged. Existing tags are preserved. The current platform downloads include 14 assets and SHA-256 manifests for all 11 packages. Earlier implementation/publication evidence is retained below as history.
+Windows 1.3.10 was built and tested by [release workflow 41792715538](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41792715538) for commit `d28e935887531d35b90c123a0e277888b4dea625` and published by [verified draft recovery 41796047284](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41796047284). Linux 1.4.1 and macOS RC2 remain at their tested commit `fc11dfb30ebb0846ed41fea473c76adadb117804`, with their original assets unchanged. Existing tags are preserved. The Windows transition release contains eleven verified assets, including the per-architecture package feeds and checksum manifest. Earlier implementation/publication evidence is retained below as history.
 
-Windows 1.3.9 adds Go to Now Playing after toast clicks and Alt+Shift+J while a toast is visible. It uses the documented desktop navigation shortcut without sending playback controls or selecting a track URI. Windows SMTC still supplies no catalog URI. Foreground/shortcut guards and remaining client-acceptance limits are described in [Windows toast behavior](WINDOWS_TOAST.md). Linux 1.4.1 and macOS RC2 include track links from validated native identifiers. macOS remains a release candidate while the interactive acceptance work below is open. No Developer ID or notarization acceptance is established by the recorded ad-hoc CI signatures.
+Windows 1.3.10 adds the one-time transition to Velopack package/delta updates while retaining the 1.3.9 Now Playing action after toast clicks and Alt+Shift+J while a toast is visible. It uses the documented desktop navigation shortcut without sending playback controls or selecting a track URI. Windows SMTC still supplies no catalog URI. Foreground/shortcut guards and remaining client-acceptance limits are described in [Windows toast behavior](WINDOWS_TOAST.md). Linux 1.4.1 and macOS RC2 include track links from validated native identifiers. macOS remains a release candidate while the interactive acceptance work below is open. No Developer ID or notarization acceptance is established by the recorded ad-hoc CI signatures.
 
 ## Historical audit baseline
 
@@ -189,3 +189,14 @@ Real-client foreground acceptance remains unconfirmed; automated service/WPF fix
 [Published Windows 1.3.9](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.3.9) passed [release workflow 41648205388](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41648205388) at `892faf3af2706303997579fe2c3a3e140dae495b`. Validation includes 189 Windows checks, 140 shared assertions, 14 release guards, the three native main builds and both Windows installer architectures. Tests cover held Enter/Space/mouse release before focus, balanced input and partial cleanup, foreign shortcut collisions, saved matching bindings, suspension/reacquisition, overlapping toast lifetime and actual WPF event routing. The public checksum manifest matches the uploaded installer digests. All older tags and Linux/macOS assets remain unchanged.
 
 Fixtures used simulated shell/input/registration adapters and isolated settings. They did not inject input into the real Spotify client or install software. Actual Spotify navigation and uninterrupted playback still require interactive acceptance; accepted native input alone does not establish that result.
+
+
+## Windows 1.3.10 Velopack transition validation
+
+[Windows 1.3.10](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.3.10) was published from `d28e935887531d35b90c123a0e277888b4dea625`. The Windows, Linux and macOS main builds passed. The [original release run](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41792715538) validated 248 service/WPF regression checks, 140 shared assertions, 34 synthetic migration checks, 16 release guards and 12 feed/draft tests; real CLI delta chains and the production SDK/native patch-only path also passed, including corrupt-delta full fallback.
+
+Its first publication attempt stopped safely after uploads because a draft without an existing tag could not be found through the tag endpoint. [Recovery 41796047284](https://github.com/MarliusLab/Toastify-Reloaded/actions/runs/41796047284) passed 19 release guards, 17 feed/publication tests and 10 recovery checks. It verified the original successful source build, pinned release/asset IDs and all uploaded bytes before publishing the same draft by release ID, without rebuilding or replacing assets. The regular publisher now also uses the upload's exact release ID.
+
+Both compatibility Setup executables, MSI packages, full baselines and per-architecture feeds were built and verified. All eleven uploaded assets match their recorded digests, and every non-manifest asset is listed in the public checksum manifest. Publication used a private draft until uploads and source-tag verification completed. The first public Velopack release establishes the full baseline; it intentionally has no fabricated delta from the legacy installer. Older tags and Linux/macOS release assets remain unchanged.
+
+Settings/registry/process tests used isolated fixtures; no elevated installer, installed-client apply/restart or uninstall was executed on the development PC. MSI databases were inspected read-only. Windows Sandbox was not available for installed-client acceptance. See [migration and remaining verification](WINDOWS_VELOPACK.md).

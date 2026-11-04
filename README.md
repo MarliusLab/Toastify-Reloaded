@@ -28,7 +28,7 @@ The project keeps the recognizable Toastify workflow and notification style whil
 
 | Platform | Current release | Channel |
 |---|---|---|
-| Windows | `v1.3.9` | Stable |
+| Windows | `v1.3.10` | Stable |
 | Linux | `v1.4.1-linux` | Stable |
 | macOS | `v1.5.0-macos-rc.2` | Release candidate; not stable |
 
@@ -39,22 +39,24 @@ These releases are published in [GitHub Releases](https://github.com/MarliusLab/
 
 ## Download
 
-### Windows — stable 1.3.9
+### Windows — stable 1.3.10
 
-[Windows v1.3.9 release page](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.3.9)
+[Windows v1.3.10 release page](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.3.10)
 
 Windows installer packages:
 
 - **Windows x64** — `ToastifyReloaded-Setup-win-x64.exe`
 - **Windows ARM64** — `ToastifyReloaded-Setup-win-arm64.exe`
 
-Windows checksums: `SHA256SUMS-Windows.txt`.
+Windows checksums: `SHA256SUMS-Windows.txt`. Use the compatibility Setup above for the transition; the release also contains the underlying MSI/full packages and update feeds.
 
-Version 1.3.9 adds **Go to Now Playing** after a toast click and through **Alt+Shift+J while a toast is visible**. It retains the Spotify/Spicetify detection and updater fixes introduced in 1.3.7. Downloads show bytes and percentage with cancellation and bounded waits; installation uses the native installer progress bar. Existing settings and the earlier legacy-tag update fix are preserved.
+**Install the transition once.** Its larger download includes the full base required for future deltas. Later updates use full/delta packages within Toastify and restart the app. Settings remain in their existing AppData folder. Program Files installations can still require Windows permission.
+
+Version 1.3.10 retains **Go to Now Playing** from toast clicks and **Alt+Shift+J while a toast is visible**, introduced in 1.3.9, and the Spotify/Spicetify maintenance fixes from 1.3.7. Package download/preparation shows progress and cancellation; existing settings and legacy update compatibility are preserved.
 
 Toast clicks support keyboard activation and safe fallbacks. See [Windows toast shortcuts and verification limits](docs/WINDOWS_TOAST.md).
 
-Windows **1.3.10 is prepared for publication after CI** as the one-time transition to Velopack. Its compatibility Setup preserves the installation directory and settings. Subsequent updates use full/delta packages from inside the app. The first bridge includes the full base and is larger; delta savings begin with later releases. See [Velopack migration and update behavior](docs/WINDOWS_VELOPACK.md).
+See [Velopack migration and update behavior](docs/WINDOWS_VELOPACK.md) for the one-time bridge, full/delta fallback and verification scope. Delta savings begin when later releases provide deltas against this first full baseline.
 
 If a running 1.3.5/1.3.6 is already stuck updating, choose **Exit** from the Toastify tray menu and run the new installer manually once. See [Windows maintenance and progress](docs/WINDOWS_MAINTENANCE.md).
 
@@ -786,7 +788,7 @@ If a brand-new Spotify build is temporarily unsupported by Spicetify, Reloaded a
 
 Toastify Reloaded can check GitHub Releases for newer versions.
 
-Installed builds use the Windows installer update path, preserving the user's configuration in:
+Windows installations migrated to Velopack use full/delta package updates; older installations retain the compatibility installer path until the one-time transition. Both preserve the user's configuration in:
 
 ```text
 %APPDATA%\ToastifyReloaded\
@@ -1001,7 +1003,8 @@ Requirements:
 - Windows 10 or Windows 11
 - .NET 8 SDK
 - Git
-- NSIS when building the Windows installer
+- Python 3 for package validation
+- NSIS for the compatibility Setup and Velopack CLI 1.2.161 for MSI/package builds
 
 Build:
 
@@ -1009,11 +1012,18 @@ Build:
 .\scripts\build.ps1
 ```
 
-Build the x64 installer:
+Build and validate the x64 and ARM64 transition packages:
 
 ```powershell
-.\scripts\build-installer.ps1 -Runtime win-x64
+dotnet tool install vpk --version 1.2.161 --tool-path .tools/vpk
+.\scripts\build-windows-packages.ps1 -Runtime win-x64
+.\scripts\build-windows-packages.ps1 -Runtime win-arm64
+[xml]$project = Get-Content .\src\ToastifyReloaded\ToastifyReloaded.csproj -Raw
+$version = $project.SelectSingleNode('/Project/PropertyGroup/Version').InnerText.Trim()
+python scripts/finalize-velopack-release.py --directory dist/windows-release --version $version
 ```
+
+The verified output is in `dist/windows-release`. Release CI retrieves a verified previous Velopack baseline to generate deltas when available. `build-installer.ps1` remains a legacy NSIS build path; use the package script above for current releases.
 
 ## Linux
 
@@ -1086,7 +1096,7 @@ Toastify-Reloaded/
 ## Platform status
 ### Click a toast title or artist
 
-Windows 1.3.9 opens/restores Spotify and requests **Go to Now Playing** after a toast click. **Alt+Shift+J while any toast is visible** uses the same action, including without toast focus. Enter/Space activates a focused text line; Ctrl+drag still moves the toast. The target is the item currently playing at activation time. This path sends no play/pause, skip, seek or track-URI command. See [Windows toast behavior and shortcut limits](docs/WINDOWS_TOAST.md).
+Windows 1.3.9 and later open/restore Spotify and request **Go to Now Playing** after a toast click. **Alt+Shift+J while any toast is visible** uses the same action, including without toast focus. Enter/Space activates a focused text line; Ctrl+drag still moves the toast. The target is the item currently playing at activation time. This path sends no play/pause, skip, seek or track-URI command. See [Windows toast behavior and shortcut limits](docs/WINDOWS_TOAST.md).
 
 Linux 1.4.1 and macOS 1.5.0 RC2 include keyboard accessible title and artist links to the **track shown in that toast**. The player supplies a Spotify catalog track URI or URL in the same metadata snapshot; a change of song cannot attach another track to the displayed text. Toastify sends a navigation link and does not issue a play/pause or seek command. Spotify determines how the link is handled.
 
@@ -1096,13 +1106,13 @@ See [verified platform status and remaining validation](docs/PLATFORM_STATUS.md)
 
 | Platform | Status | Distribution |
 |---|---|---|
-| Windows x64 | Stable 1.3.9 release available | Installer |
-| Windows ARM64 | Stable 1.3.9 release available | Installer |
+| Windows x64 | Stable 1.3.10 release available | Installer |
+| Windows ARM64 | Stable 1.3.10 release available | Installer |
 | Linux x64 | Stable 1.4.1 release available | AppImage / `.deb` / tar.gz |
 | Linux ARM64 | Stable 1.4.1 release available; cross-built | `.deb` / tar.gz |
 | macOS x64 / Apple Silicon | 1.5.0 RC2 release available; stable acceptance pending | ZIP / DMG |
 
-Release tags: **`v1.3.9`**, **`v1.4.1-linux`**, **`v1.5.0-macos-rc.2`**.
+Release tags: **`v1.3.10`**, **`v1.4.1-linux`**, **`v1.5.0-macos-rc.2`**.
 
 ---
 

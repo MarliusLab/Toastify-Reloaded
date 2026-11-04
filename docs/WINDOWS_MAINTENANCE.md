@@ -1,14 +1,16 @@
 # Windows 1.3.7 maintenance update
 
-Current Windows release: **[`v1.3.9`](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.3.9)**. Both installers retain the 1.3.7 maintenance fixes below and add [toast activation](WINDOWS_TOAST.md). Their checksum manifest is published alongside the packages.
+Current Windows release: **[`v1.3.10`](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.3.10)**. Both compatibility installers retain the maintenance/toast fixes below and introduce the [Velopack transition](WINDOWS_VELOPACK.md). The first download is larger; subsequent updates use packages/deltas when available. Their checksum manifest is published alongside the packages.
+
+The installer-update details and validation table below record the legacy path. Migrated installations use the package updater described in [Windows Velopack updates](WINDOWS_VELOPACK.md).
 
 ## One-time upgrade from a running 1.3.5 or 1.3.6 build
 
 The fixes below run inside 1.3.7. An older running program continues using its older downloader and cannot acquire the new progress/timeout behavior until it is replaced.
 
 1. Right-click the Toastify Reloaded system-tray icon and choose **Exit**. Closing Settings with its X button only hides it. If the old application does not respond, end only ToastifyReloaded.exe in Task Manager before running the installer.
-2. Open the [Windows v1.3.9 release](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.3.9) and download the installer matching the device: `ToastifyReloaded-Setup-win-x64.exe` or `ToastifyReloaded-Setup-win-arm64.exe`.
-3. Run that installer manually and confirm the normal Windows permission request. Let its installation progress finish, then start Toastify Reloaded 1.3.9.
+2. Open the [Windows v1.3.10 release](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.3.10) and download the installer matching the device: `ToastifyReloaded-Setup-win-x64.exe` or `ToastifyReloaded-Setup-win-arm64.exe`.
+3. Run that installer manually and confirm the normal Windows permission request. Let its installation progress finish, then start Toastify Reloaded 1.3.10.
 4. Open **Reloaded** and check the displayed application, Spotify and Spicetify versions. Subsequent update downloads use the new progress and cancellation behavior.
 
 The existing configuration remains in `%APPDATA%\ToastifyReloaded\settings.json`. No settings migration or removal is required. Themes, hotkeys, playback controls, automatic maintenance choices and startup preferences are preserved.

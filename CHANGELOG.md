@@ -2,7 +2,7 @@
 
 Published releases are listed in [GitHub Releases](https://github.com/MarliusLab/Toastify-Reloaded/releases). Historical tags are preserved.
 
-## 1.3.10 - prepared for Windows publication after CI
+## 1.3.10 - 2026-11-04 (Windows transition release)
 
 - Added pinned Velopack 1.2.161 startup before WPF/mutex initialization and an updater facade that retains the legacy installer path for installations that have not migrated.
 - Added per-machine MSI and compatibility Setup packages for x64/ARM64, retaining the original installation directory, stable launcher, enabled/disabled startup preference and `%APPDATA%` settings. Legacy NSIS registration is retired only after successful migration; installer failure restores the legacy executable/uninstaller backup.
@@ -10,6 +10,7 @@ Published releases are listed in [GitHub Releases](https://github.com/MarliusLab
 - Added cancellable package download/preparation progress, bounded HTTP/native-patch waits, verified delta/native reconstruction and full fallback. Equivalent reconstructed ZIPs are verified through the native patch engine and an in-memory receipt rather than incorrectly comparing their archive bytes with the original full ZIP.
 - Added a protected seed import into the normal user's package cache, stable launcher startup paths, non-elevated restart and an application-running preflight. Existing toast, Now Playing, hotkeys, Spotify/Spicetify maintenance and settings behavior are preserved.
 - Updated native build/release gates to validate package identity, architecture, feeds and hashes, exercise synthetic/native delta paths and upload a private draft before publishing only after every required asset is verified. Historical releases keep their original asset contracts and tags.
+- Validation: 248 Windows regression checks, 140 shared assertions and 34 migration checks passed, including real SDK/native delta reconstruction and corrupt-delta full fallback. Final publication checks passed 19 release guards, 17 feed/publication tests and 10 recovery checks. Both architectures and all eleven release assets passed native CI and checksum verification.
 - Automated installation tests use fake process/registry operations. Real elevated migration, rollback and subsequent installed-client update acceptance remain separate; no installer was executed on the development host.
 
 ## 1.3.9 - 2026-11-03 (Windows stable patch)
