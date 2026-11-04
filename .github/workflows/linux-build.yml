@@ -85,6 +85,8 @@ jobs:
           desktop-file-validate packaging/linux/io.github.Marlius92.ToastifyReloaded.desktop
 
       - name: Package x64
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           chmod +x scripts/package-linux-tar.sh scripts/package-linux-deb.sh scripts/package-linux-velopack.sh
           ./scripts/package-linux-tar.sh
@@ -201,6 +203,8 @@ jobs:
           grep -Eiq 'ARM aarch64|ARM64|aarch64' "$FILE_INFO"
 
       - name: Package ARM64
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           chmod +x scripts/package-linux-arm64-tar.sh scripts/package-linux-arm64-deb.sh scripts/package-linux-velopack.sh
           ./scripts/package-linux-arm64-tar.sh

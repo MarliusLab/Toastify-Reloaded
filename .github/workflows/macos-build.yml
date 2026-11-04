@@ -83,6 +83,8 @@ jobs:
           ./scripts/package-macos-app.sh osx-arm64
 
       - name: Package signed Velopack app bundles and platform feeds
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           ./scripts/package-macos-velopack.sh osx-x64
           ./scripts/package-macos-velopack.sh osx-arm64
