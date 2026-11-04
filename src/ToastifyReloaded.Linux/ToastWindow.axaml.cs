@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Automation;
 using Avalonia.Interactivity;
+using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Platform;
 using ToastifyReloaded.Linux.Models;
@@ -18,22 +19,42 @@ public partial class ToastWindow : Window
     private bool _openingTrack;
     private bool _showOpenStatus;
     private DateTime _statusUntil;
+    private readonly CancellationTokenSource _lifetime = new();
+    private readonly ToastifyReloaded.Shared.ToastNavigationGate _actions;
+    private bool _closed, _exiting;
+    private readonly ToastKeyboardNavigation _keyboardNavigation = new();
+    internal bool CanHandleLyricsPlusRequest => IsVisible && !_closed;
 
     public ToastWindow(
         LinuxTrackInfo track,
         LinuxSettings settings,
         ArtworkService artworkService,
         SpotifyTrackOpenService trackOpener)
+        : this(track, settings, artworkService, trackOpener, new ToastifyReloaded.Shared.ToastNavigationGate()) { }
+
+    internal ToastWindow(LinuxTrackInfo track, LinuxSettings settings, ArtworkService artworkService,
+        SpotifyTrackOpenService trackOpener, ToastifyReloaded.Shared.ToastNavigationGate actions)
     {
         InitializeComponent();
         _track = track;
         _settings = settings;
         _artworkService = artworkService;
         _trackOpener = trackOpener;
+        _actions = actions;
+        Closed += (_, _) => { _closed = true; _lifetime.Cancel(); };
+        RootBorder.AddHandler(PointerReleasedEvent, OnToastPointerReleased, RoutingStrategies.Bubble);
+        AddHandler(KeyDownEvent, OnNavigationKeyDown, RoutingStrategies.Tunnel);
+        AddHandler(KeyUpEvent, OnNavigationKeyUp, RoutingStrategies.Tunnel);
+        Deactivated += (_, _) => _keyboardNavigation.Reset();
+        var trackItem = new MenuItem { Header = _settings.Language == "English" ? "Open displayed track" : "Apri il brano visualizzato" };
+        trackItem.Click += async (_, _) => await RequestNavigationAsync(lyrics: false);
+        RootBorder.ContextMenu = new ContextMenu { ItemsSource = new[] { trackItem } };
     }
 
     public async Task ShowToastAsync()
     {
+        try
+        {
         ApplyThemeAndTypography();
         ApplyContent();
         ApplyWidth();
@@ -57,6 +78,7 @@ public partial class ToastWindow : Window
             _settings.ShowSongTime &&
             _track.DurationSeconds > 0;
 
+        if (_closed) return;
         var screen = ResolveTargetScreen();
 
         PositionAtEnd(screen, entering: true);
@@ -69,8 +91,8 @@ public partial class ToastWindow : Window
         var started = DateTime.UtcNow;
         var initialPosition = _track.PositionSeconds;
 
-        while ((DateTime.UtcNow - started).TotalMilliseconds <
-               _settings.ToastDisplayMs || _openingTrack || DateTime.UtcNow < _statusUntil)
+        while (!_closed && ((DateTime.UtcNow - started).TotalMilliseconds <
+               _settings.ToastDisplayMs || _openingTrack || DateTime.UtcNow < _statusUntil))
         {
             var elapsed = _track.IsPlaying
                 ? (DateTime.UtcNow - started).TotalSeconds
@@ -81,11 +103,15 @@ public partial class ToastWindow : Window
                 Math.Max(0, initialPosition + elapsed));
 
             UpdateTimeline(current);
-            await Task.Delay(250);
+            await Task.Delay(250, _lifetime.Token);
         }
 
+        if (_closed) return;
+        _exiting = true;
         await AnimateOutAsync(screen);
         Close();
+        }
+        catch (OperationCanceledException) when (_closed) { }
     }
 
     private void ApplyContent()
@@ -98,7 +124,7 @@ public partial class ToastWindow : Window
             ? _track.Album
             : _track.Artist;
 
-        var description = new LocalizationService().Get("OpenTrack", _settings.Language);
+        var description = new LocalizationService().Get("OpenLyricsPlus", _settings.Language);
         ToolTip.SetTip(TitleLink, description);
         ToolTip.SetTip(ArtistLink, description);
         AutomationProperties.SetName(TitleLink, description + ": " + TitleText.Text);
@@ -108,7 +134,39 @@ public partial class ToastWindow : Window
     private async void OnTrackLinkClick(object? sender, RoutedEventArgs e)
     {
         e.Handled = true;
-        if (_openingTrack)
+        await RequestLyricsPlusAsync();
+    }
+
+    private async void OnToastPointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (e.InitialPressMouseButton != MouseButton.Left || e.Handled) return;
+        e.Handled = true;
+        await RequestLyricsPlusAsync();
+    }
+
+    internal Task RequestLyricsPlusAsync() => !CanHandleLyricsPlusRequest || _exiting
+        ? Task.CompletedTask : RequestNavigationAsync(lyrics: true);
+
+    internal Task RequestCurrentTrackAsync() => !CanHandleLyricsPlusRequest || _exiting
+        ? Task.CompletedTask : RequestNavigationAsync(lyrics: false, currentTrack: true);
+
+    private void OnNavigationKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (_keyboardNavigation.KeyDown(e.Key.ToString(), e.KeyModifiers == (KeyModifiers.Alt | KeyModifiers.Shift)))
+            e.Handled = true;
+    }
+
+    private async void OnNavigationKeyUp(object? sender, KeyEventArgs e)
+    {
+        var action = _keyboardNavigation.KeyUp(e.Key.ToString(), e.KeyModifiers != KeyModifiers.None);
+        if (e.Key is Key.Enter or Key.Space or Key.J || action != ToastKeyboardAction.None) e.Handled = true;
+        if (action == ToastKeyboardAction.LyricsPlus) await RequestLyricsPlusAsync();
+        else if (action == ToastKeyboardAction.CurrentTrack) await RequestCurrentTrackAsync();
+    }
+
+    private Task RequestNavigationAsync(bool lyrics, bool currentTrack = false) => _actions.RunAsync(async () =>
+    {
+        if (_openingTrack || _closed || _exiting)
             return;
 
         _openingTrack = true;
@@ -116,13 +174,16 @@ public partial class ToastWindow : Window
         {
             // Use the same immutable snapshot as the displayed title/artist,
             // even if Spotify changes tracks while this toast is still open.
-            var result = await _trackOpener.OpenAsync(_track.TrackUri);
-            if (result != SpotifyTrackOpenResult.TrackOpened)
+            var result = lyrics ? await _trackOpener.OpenLyricsPlusAsync(_lifetime.Token)
+                : currentTrack ? await _trackOpener.OpenCurrentTrackAsync(_lifetime.Token)
+                : await _trackOpener.OpenAsync(_track.TrackUri, _lifetime.Token);
+            if (_closed) return;
+            if (result is not (SpotifyTrackOpenResult.TrackOpened or SpotifyTrackOpenResult.LyricsPlusRequested))
             {
                 _showOpenStatus = true;
                 var key = result == SpotifyTrackOpenResult.AppActivated
-                    ? "TrackUnavailableOpenedSpotify"
-                    : "TrackOpenFailed";
+                    ? (lyrics ? "LyricsPlusActivatedFallback" : "TrackUnavailableOpenedSpotify")
+                    : (lyrics ? "LyricsPlusOpenFailed" : "TrackOpenFailed");
                 TimeText.Text = new LocalizationService().Get(key, _settings.Language);
                 TimeText.IsVisible = true;
                 _statusUntil = DateTime.UtcNow.AddSeconds(2);
@@ -130,10 +191,12 @@ public partial class ToastWindow : Window
                 ToolTip.SetTip(ArtistLink, TimeText.Text);
             }
         }
+        catch (OperationCanceledException) when (_closed) { }
         catch
         {
+            if (_closed) return;
             _showOpenStatus = true;
-            TimeText.Text = new LocalizationService().Get("TrackOpenFailed", _settings.Language);
+            TimeText.Text = new LocalizationService().Get(lyrics ? "LyricsPlusOpenFailed" : "TrackOpenFailed", _settings.Language);
             TimeText.IsVisible = true;
             _statusUntil = DateTime.UtcNow.AddSeconds(2);
         }
@@ -141,7 +204,7 @@ public partial class ToastWindow : Window
         {
             _openingTrack = false;
         }
-    }
+    });
 
     private void ApplyWidth()
     {
@@ -287,7 +350,7 @@ public partial class ToastWindow : Window
                 t);
 
             if (duration > 0)
-                await Task.Delay(16);
+                await Task.Delay(16, _lifetime.Token);
         }
 
         Opacity = 1;
@@ -323,7 +386,7 @@ public partial class ToastWindow : Window
                 t);
 
             if (duration > 0)
-                await Task.Delay(16);
+                await Task.Delay(16, _lifetime.Token);
         }
     }
 

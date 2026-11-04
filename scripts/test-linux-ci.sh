@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-APP="$ROOT/dist/linux-x64/ToastifyReloaded.Linux"
-LOG="$ROOT/dist/linux-smoke-test.log"
+APP="${TOASTIFY_SMOKE_APP:-$ROOT/dist/linux-x64/ToastifyReloaded.Linux}"
+LOG="${TOASTIFY_SMOKE_LOG:-$ROOT/dist/linux-smoke-test.log}"
 CONFIG="$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/toastify-linux-smoke.XXXXXX")"
 trap 'rm -rf "$CONFIG"' EXIT
 

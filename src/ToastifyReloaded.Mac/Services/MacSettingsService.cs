@@ -168,6 +168,7 @@ public sealed class MacSettingsService
         settings.HotkeyMute ??= "";
         settings.HotkeySeekForward ??= "";
         settings.HotkeySeekBackward ??= "";
+        settings.HotkeyShowToast ??= "";
         settings.LastSpotifyVersion ??= "";
         settings.LastRepairAttemptVersion ??= "";
 

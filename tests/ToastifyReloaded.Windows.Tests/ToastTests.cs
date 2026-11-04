@@ -161,6 +161,15 @@ internal static class ToastTests
             await Task.Delay(1100);
             check(timed.IsVisible && !timedToken.IsCancellationRequested && !timedClosed.Task.IsCompleted,
                 "ShowTimed toast survives its 500ms timeout while Lyrics Plus remains pending");
+            // CI may schedule a 250ms dispatcher tick just before the next
+            // displayed whole second. Observe a real subsequent tick with a
+            // deadline instead of assuming it happened by exactly 1100ms.
+            var timelineDeadline = System.Diagnostics.Stopwatch.StartNew();
+            while (timeline.Text == initialTimeline && timelineDeadline.Elapsed < TimeSpan.FromSeconds(4))
+            {
+                await Task.Delay(25);
+                await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+            }
             check(timeline.Text != initialTimeline,
                 "song timeline continues while the toast lifetime timer is paused for activation");
             activation.SetResult(SpotifyTrackOpenResult.LyricsPlusRequested);

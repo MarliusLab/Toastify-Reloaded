@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Fonts.Inter;
 using ToastifyReloaded.Linux.Services;
+using Velopack;
 
 namespace ToastifyReloaded.Linux;
 
@@ -10,6 +11,8 @@ internal static class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        VelopackApp.Build().SetArgs(args).SetAutoApplyOnStartup(false)
+            .OnRestarted(_ => ToastifyReloaded.Shared.UpdateSessionPolicy.MarkUpdaterRestart()).Run();
         if (args.Contains(
                 "--self-test",
                 StringComparer.OrdinalIgnoreCase))
@@ -23,6 +26,8 @@ internal static class Program
             return;
         }
 
+        using var instance = ToastifyReloaded.Shared.SingleInstanceLease.TryAcquire("linux");
+        if (instance is null) { Console.Error.WriteLine("Toastify Reloaded è già in esecuzione."); return; }
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(
             args,
             ShutdownMode.OnExplicitShutdown);

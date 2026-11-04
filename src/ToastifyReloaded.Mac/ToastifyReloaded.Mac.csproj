@@ -16,6 +16,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Velopack" Version="1.2.161" />
     <PackageReference Include="Avalonia" Version="12.1.1" />
     <PackageReference Include="Avalonia.Desktop" Version="12.1.1" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.1" />
@@ -24,7 +25,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="../ToastifyReloaded.Shared/SpotifyTrackLink.cs" Link="Shared/SpotifyTrackLink.cs" />
     <AvaloniaResource Include="Assets/**" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../ToastifyReloaded.Shared/*.cs" Link="Shared/%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

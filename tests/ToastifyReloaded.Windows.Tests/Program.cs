@@ -39,6 +39,7 @@ internal static class Program
             await ToastTests.RunAsync(Check);
             await ToastShowHotkeyTests.RunAsync(Check);
             await ToastHotkeyTests.RunAsync(Check);
+            await UpdateSessionPolicyTests.RunAsync(Check); // Process-only marker; run last.
             Console.WriteLine($"WINDOWS REGRESSION TEST RESULT: PASS ({count})");
             return 0;
         }

@@ -46,6 +46,7 @@
             <StackPanel Margin="12" Spacing="8">
               <TextBlock x:Name="PlayerctlStatusText" Text="AppleScript / osascript: verifica..."/>
               <TextBlock x:Name="SpotifyStatusText" Text="Spotify Automation: verifica..."/>
+              <TextBlock x:Name="SpotifyVersionText" Text="Versione Spotify: verifica..."/>
               <TextBlock x:Name="SessionStatusText" Text="Accessibilità hotkey: verifica..."/>
               <TextBlock TextWrapping="Wrap" Opacity="0.7"
                          Text="I controlli Spotify usano AppleScript. Le hotkey globali usano il backend nativo macOS e richiedono il permesso Accessibilità."/>
@@ -55,7 +56,7 @@
       </TabItem>
 
       <TabItem Header="Hotkeys">
-        <Grid Margin="14" ColumnDefinitions="220,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*">
+        <Grid Margin="14" ColumnDefinitions="220,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*">
           <CheckBox x:Name="EnableHotkeysCheck" Grid.ColumnSpan="2" Content="Abilita hotkey globali" Margin="0,0,0,12"/>
 
           <TextBlock Grid.Row="1" Text="Play / Pause" VerticalAlignment="Center"/>
@@ -82,7 +83,10 @@
           <TextBlock Grid.Row="8" Text="Seek -10s" VerticalAlignment="Center"/>
           <TextBox x:Name="SeekBackwardHotkeyBox" Grid.Row="8" Grid.Column="1"/>
 
-          <TextBlock Grid.Row="9" Grid.ColumnSpan="2" Margin="0,14,0,0" TextWrapping="Wrap" Opacity="0.7"
+          <TextBlock Grid.Row="9" Text="Mostra toast / apri Lyrics Plus" VerticalAlignment="Center"/>
+          <TextBox x:Name="ShowToastHotkeyBox" Grid.Row="9" Grid.Column="1"/>
+
+          <TextBlock Grid.Row="10" Grid.ColumnSpan="2" Margin="0,14,0,0" TextWrapping="Wrap" Opacity="0.7"
                      Text="macOS: al primo utilizzo delle hotkey può essere richiesto il permesso in Impostazioni di Sistema → Privacy e Sicurezza → Accessibilità."/>
         </Grid>
       </TabItem>
@@ -304,7 +308,7 @@
                         Content="Controlla automaticamente aggiornamenti macOS"/>
               <CheckBox x:Name="AutoInstallUpdatesCheck"
                         Content="Installa automaticamente gli aggiornamenti macOS"/>
-              <Button Content="Controlla aggiornamenti"
+              <Button x:Name="CheckUpdatesButton" Content="Controlla aggiornamenti"
                       Click="CheckUpdates_Click"
                       HorizontalAlignment="Left"/>
               <StackPanel Orientation="Horizontal" Spacing="8">
@@ -318,6 +322,8 @@
                         IsEnabled="False"/>
               </StackPanel>
               <TextBlock x:Name="UpdateStatusText" TextWrapping="Wrap" Opacity="0.7"/>
+              <ProgressBar x:Name="UpdateProgressBar" Minimum="0" Maximum="100" IsVisible="False"/>
+              <Button x:Name="CancelUpdateButton" Content="Annulla aggiornamento" Click="CancelUpdate_Click" IsVisible="False"/>
             </StackPanel>
           </GroupBox>
 

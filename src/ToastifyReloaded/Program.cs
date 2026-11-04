@@ -1,4 +1,5 @@
 using Velopack;
+using ToastifyReloaded.Shared;
 using ToastifyReloaded.Services;
 
 namespace ToastifyReloaded;
@@ -10,7 +11,8 @@ internal static class Program
     {
         // Lifecycle hooks must exit before WPF, the single-instance mutex, tray,
         // Spotify probes, or normal application settings are initialized.
-        VelopackApp.Build().SetArgs(args).SetAutoApplyOnStartup(false).Run();
+        VelopackApp.Build().SetArgs(args).SetAutoApplyOnStartup(false)
+            .OnRestarted(_ => UpdateSessionPolicy.MarkUpdaterRestart()).Run();
 
         // Hook invocations have already exited. Keep existing enabled startup
         // entries pointing at the stable stub after the one-time migration.

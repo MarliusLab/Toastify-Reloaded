@@ -1,388 +1,159 @@
 using System.Diagnostics;
-using System.Net.Http.Headers;
 using System.Runtime.InteropServices;
-using System.Security.Cryptography;
 using ToastifyReloaded.Linux.Models;
+using ToastifyReloaded.Shared;
 
 namespace ToastifyReloaded.Linux.Services;
+
+public enum LinuxInstallKind { Portable, AppImage, Deb }
+public sealed record DownloadedLinuxUpdate(LinuxUpdateInfo Update, LinuxUpdateAsset? Asset, string? FilePath,
+    LinuxInstallKind Kind, PortableUpdatePackage? Package = null);
 
 public sealed class LinuxUpdateInstallerService
 {
     private readonly ProcessService _process;
+    private readonly HttpClient _http;
+    private readonly IPortableUpdateBackend? _packages;
 
-    private readonly HttpClient _http = new()
-    {
-        Timeout = TimeSpan.FromMinutes(5)
-    };
-
-    public LinuxUpdateInstallerService(ProcessService process)
+    public LinuxUpdateInstallerService(ProcessService process, IPortableUpdateBackend? packages = null, HttpClient? http = null)
     {
         _process = process;
-
-        _http.DefaultRequestHeaders.UserAgent.Add(
-            new ProductInfoHeaderValue(
-                "ToastifyReloaded",
-                "1.4.1"));
+        _packages = packages ?? (OperatingSystem.IsLinux() ? new PortablePackageUpdateService("linux") : null);
+        _http = http ?? new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
+        _http.DefaultRequestHeaders.UserAgent.ParseAdd("ToastifyReloaded/1.4.2");
     }
 
-    public async Task<LinuxUpdateApplyResult> DownloadAndApplyAsync(
-        LinuxUpdateInfo update,
-        CancellationToken cancellationToken = default)
+    public Task<LinuxUpdateApplyResult> DownloadAndApplyAsync(LinuxUpdateInfo update, CancellationToken cancellationToken = default)
+        => DownloadAndApplyAsync(update, null, cancellationToken);
+
+    public async Task<LinuxUpdateApplyResult> DownloadAndApplyAsync(LinuxUpdateInfo update,
+        IProgress<UpdateOperationProgress>? progress, CancellationToken cancellationToken = default)
+        => await InstallAsync(await DownloadAsync(update, progress, cancellationToken), progress, cancellationToken);
+
+    public async Task<DownloadedLinuxUpdate> DownloadAsync(LinuxUpdateInfo update,
+        IProgress<UpdateOperationProgress>? progress = null, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var kind = DetectInstallKind();
-        var arch = RuntimeInformation.ProcessArchitecture;
-
-        var asset = SelectAsset(
-            update,
-            kind,
-            arch);
-
-        if (asset is null)
+        if (_packages?.IsInstalled == true)
         {
-            return new LinuxUpdateApplyResult(
-                false,
-                false,
-                "Nessun pacchetto compatibile trovato nella release.",
-                null);
+            progress?.Report(new(UpdateOperationStage.Checking));
+            var package = await _packages.CheckAsync(cancellationToken);
+            var expected = update.Version.Major + "." + update.Version.Minor + "." + update.Version.Patch;
+            if (update.Version.Stage != LinuxReleaseStage.Stable)
+                expected += update.Version.Stage == LinuxReleaseStage.Preview ? "-preview." + update.Version.StageNumber : "-rc." + update.Version.StageNumber;
+            if (package is null || package.Version != expected)
+                throw new InvalidDataException("The checked Linux package feed does not match the requested release.");
+            await _packages.DownloadAsync(package, progress, cancellationToken);
+            return new(update, null, null, kind, package);
         }
-
-        var destination =
-            await DownloadAsync(
-                update,
-                asset,
-                cancellationToken);
-
-        if (!await VerifyDigestAsync(
-                destination,
-                asset.Digest,
-                cancellationToken))
-        {
-            File.Delete(destination);
-
-            return new LinuxUpdateApplyResult(
-                false,
-                false,
-                "Verifica SHA-256 del pacchetto non riuscita.",
-                null);
-        }
-
-        switch (kind)
-        {
-            case LinuxInstallKind.AppImage:
-                return await ApplyAppImageAsync(
-                    destination);
-
-            case LinuxInstallKind.Deb:
-                return await ApplyDebAsync(
-                    destination);
-
-            default:
-                return new LinuxUpdateApplyResult(
-                    true,
-                    false,
-                    $"Aggiornamento scaricato: {destination}",
-                    destination);
-        }
+        var asset = SelectAsset(update, kind, RuntimeInformation.ProcessArchitecture)
+            ?? throw new InvalidDataException("Nessun pacchetto Linux compatibile trovato nella release.");
+        var xdg = Environment.GetEnvironmentVariable("XDG_CACHE_HOME");
+        var cache = !string.IsNullOrWhiteSpace(xdg) ? xdg : Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".cache");
+        var destination = Path.Combine(cache, "toastify-reloaded", "updates", update.Tag, asset.Name);
+        await SafeUpdateDownloader.DownloadAsync(_http, asset.DownloadUri, update.Tag, asset.Name,
+            destination, asset.Size, asset.Digest, progress, cancellationToken);
+        return new(update, asset, destination, kind);
     }
 
-    private LinuxInstallKind DetectInstallKind()
+    public async Task<LinuxUpdateApplyResult> InstallAsync(DownloadedLinuxUpdate downloaded,
+        IProgress<UpdateOperationProgress>? progress = null, CancellationToken cancellationToken = default,
+        bool restartMinimized = false)
     {
-        var appImage =
-            Environment.GetEnvironmentVariable("APPIMAGE");
-
-        if (!string.IsNullOrWhiteSpace(appImage) &&
-            File.Exists(appImage))
-            return LinuxInstallKind.AppImage;
-
-        var processPath =
-            Environment.ProcessPath ?? "";
-
-        if (processPath.StartsWith(
-                "/opt/toastify-reloaded/",
-                StringComparison.Ordinal))
-            return LinuxInstallKind.Deb;
-
-        return LinuxInstallKind.Portable;
-    }
-
-    private static LinuxUpdateAsset? SelectAsset(
-        LinuxUpdateInfo update,
-        LinuxInstallKind kind,
-        Architecture architecture)
-    {
-        var isArm64 = architecture == Architecture.Arm64;
-
-        string expected;
-
-        if (kind == LinuxInstallKind.AppImage &&
-            !isArm64)
+        cancellationToken.ThrowIfCancellationRequested();
+        if (downloaded.Package is { } package)
         {
-            expected =
-                "ToastifyReloaded-Linux-x64.AppImage";
+            if (_packages?.IsInstalled != true) throw new InvalidOperationException("Package backend changed; check again.");
+            progress?.Report(new(UpdateOperationStage.WaitingForPermission));
+            var started = await _packages.ApplyAndRestartAsync(package, restartMinimized, cancellationToken);
+            return new(started, started, started ? "Avvio aggiornamento Linux; segui l'eventuale richiesta di autorizzazione." :
+                "Impossibile avviare l'aggiornamento Linux.", null);
         }
-        else if (kind == LinuxInstallKind.Deb)
+        var asset = downloaded.Asset ?? throw new InvalidDataException("Missing checked update asset.");
+        var path = downloaded.FilePath ?? throw new InvalidDataException("Missing checked update path.");
+        if (!SafeUpdateDownloader.IsTrustedAssetUri(asset.DownloadUri, downloaded.Update.Tag, asset.Name) ||
+            Path.GetFileName(path) != asset.Name) throw new InvalidDataException("Untrusted checked update.");
+        progress?.Report(new(UpdateOperationStage.Verifying));
+        await SafeUpdateDownloader.VerifyFileAsync(path, asset.Size, SafeUpdateDownloader.ParseDigest(asset.Digest), cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (downloaded.Kind == LinuxInstallKind.Portable)
         {
-            expected = isArm64
-                ? "arm64.deb"
-                : "amd64.deb";
+            progress?.Report(new(UpdateOperationStage.Ready, Message: "Pacchetto pronto per l'installazione manuale."));
+            return new(true, false, "Aggiornamento verificato e scaricato: " + path, path);
         }
-        else
-        {
-            expected = isArm64
-                ? "ToastifyReloaded-Linux-arm64.tar.gz"
-                : "ToastifyReloaded-Linux-x64.tar.gz";
-        }
-
-        return update.Assets.FirstOrDefault(
-            x => kind == LinuxInstallKind.Deb
-                ? x.Name.EndsWith(
-                    expected,
-                    StringComparison.OrdinalIgnoreCase)
-                : string.Equals(
-                    x.Name,
-                    expected,
-                    StringComparison.OrdinalIgnoreCase));
-    }
-
-    private async Task<string> DownloadAsync(
-        LinuxUpdateInfo update,
-        LinuxUpdateAsset asset,
-        CancellationToken cancellationToken)
-    {
-        var xdg =
-            Environment.GetEnvironmentVariable(
-                "XDG_CACHE_HOME");
-
-        var cacheRoot =
-            !string.IsNullOrWhiteSpace(xdg)
-                ? xdg
-                : Path.Combine(
-                    Environment.GetFolderPath(
-                        Environment.SpecialFolder.UserProfile),
-                    ".cache");
-
-        var directory = Path.Combine(
-            cacheRoot,
-            "toastify-reloaded",
-            "updates",
-            update.Tag);
-
-        Directory.CreateDirectory(directory);
-
-        var destination = Path.Combine(
-            directory,
-            asset.Name);
-
-        using var response =
-            await _http.GetAsync(
-                asset.DownloadUri,
-                HttpCompletionOption.ResponseHeadersRead,
-                cancellationToken);
-
-        response.EnsureSuccessStatusCode();
-
-        await using var input =
-            await response.Content.ReadAsStreamAsync(
-                cancellationToken);
-
-        await using var output =
-            File.Create(destination);
-
-        await input.CopyToAsync(
-            output,
-            cancellationToken);
-
-        return destination;
-    }
-
-    private static async Task<bool> VerifyDigestAsync(
-        string path,
-        string? digest,
-        CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(digest))
-            return true;
-
-        const string prefix = "sha256:";
-
-        if (!digest.StartsWith(
-                prefix,
-                StringComparison.OrdinalIgnoreCase))
-            return true;
-
-        var expected =
-            digest[prefix.Length..]
-                .Trim()
-                .ToLowerInvariant();
-
-        await using var stream =
-            File.OpenRead(path);
-
-        var bytes =
-            await SHA256.HashDataAsync(
-                stream,
-                cancellationToken);
-
-        var actual =
-            Convert.ToHexString(bytes)
-                .ToLowerInvariant();
-
-        return string.Equals(
-            expected,
-            actual,
-            StringComparison.Ordinal);
-    }
-
-    private async Task<LinuxUpdateApplyResult> ApplyAppImageAsync(
-        string downloadedPath)
-    {
-        var appImage =
-            Environment.GetEnvironmentVariable("APPIMAGE");
-
-        if (string.IsNullOrWhiteSpace(appImage) ||
-            !File.Exists(appImage))
-        {
-            return new LinuxUpdateApplyResult(
-                true,
-                false,
-                $"AppImage scaricata: {downloadedPath}",
-                downloadedPath);
-        }
-
         try
         {
-            File.SetUnixFileMode(
-                downloadedPath,
-                UnixFileMode.UserRead |
-                UnixFileMode.UserWrite |
-                UnixFileMode.UserExecute |
-                UnixFileMode.GroupRead |
-                UnixFileMode.GroupExecute |
-                UnixFileMode.OtherRead |
-                UnixFileMode.OtherExecute);
-
-            var backup =
-                appImage + ".previous";
-
-            if (File.Exists(backup))
-                File.Delete(backup);
-
-            File.Move(
-                appImage,
-                backup);
-
-            try
+            if (downloaded.Kind == LinuxInstallKind.AppImage)
             {
-                File.Move(
-                    downloadedPath,
-                    appImage);
-            }
-            catch
-            {
-                File.Move(
-                    backup,
-                    appImage);
-
-                throw;
-            }
-
-            File.SetUnixFileMode(
-                appImage,
-                UnixFileMode.UserRead |
-                UnixFileMode.UserWrite |
-                UnixFileMode.UserExecute |
-                UnixFileMode.GroupRead |
-                UnixFileMode.GroupExecute |
-                UnixFileMode.OtherRead |
-                UnixFileMode.OtherExecute);
-
-            Process.Start(
-                new ProcessStartInfo
+                progress?.Report(new(UpdateOperationStage.Preparing));
+                var current = Environment.GetEnvironmentVariable("APPIMAGE");
+                if (string.IsNullOrWhiteSpace(current) || !File.Exists(current))
+                    throw new IOException("AppImage corrente non disponibile.");
+                var staged = current + ".new-" + Guid.NewGuid().ToString("N");
+                try
                 {
-                    FileName = appImage,
-                    UseShellExecute = true
-                });
-
-            return new LinuxUpdateApplyResult(
-                true,
-                true,
-                "AppImage aggiornata. Riavvio avviato.",
-                appImage);
+                    File.Copy(path, staged);
+                    await SafeUpdateDownloader.VerifyFileAsync(staged, asset.Size, SafeUpdateDownloader.ParseDigest(asset.Digest), cancellationToken);
+                    File.SetUnixFileMode(staged, File.GetUnixFileMode(current));
+                    cancellationToken.ThrowIfCancellationRequested();
+                    progress?.Report(new(UpdateOperationStage.Installing));
+                    // Same-directory rename keeps the active AppImage in place
+                    // until the complete verified replacement is available.
+                    File.Copy(current, current + ".previous", overwrite: true);
+                    File.Move(staged, current, overwrite: true);
+                    var start = LinuxRestartHandoff.CreateStartInfo(current, Environment.ProcessId, restartMinimized);
+                    if (Process.Start(start) is null) throw new IOException("Riavvio AppImage non avviato.");
+                    return new(true, true, "AppImage aggiornata; riavvio avviato.", current);
+                }
+                finally { if (File.Exists(staged)) File.Delete(staged); }
+            }
+            if (!await _process.ExistsAsync("pkexec", cancellationToken) ||
+                !await _process.ExistsAsync("apt-get", cancellationToken))
+                return new(true, false, "Pacchetto .deb verificato: " + path, path);
+            cancellationToken.ThrowIfCancellationRequested();
+            progress?.Report(new(UpdateOperationStage.WaitingForPermission, Message: "Conferma l'installazione nel gestore pacchetti."));
+            // Authorization is the handoff boundary. Do not cancel a package
+            // manager transaction merely because the old app is closing.
+            var result = await _process.RunAsync("pkexec", new[] { "apt-get", "install", "-y", path },
+                CancellationToken.None, TimeSpan.FromMinutes(5));
+            if (result.ExitCode != 0)
+                return new(false, false, string.IsNullOrWhiteSpace(result.StdErr) ? "Installazione .deb non riuscita." : result.StdErr, path);
+            progress?.Report(new(UpdateOperationStage.Completed));
+            const string launcher = "/usr/bin/toastify-reloaded";
+            if (!File.Exists(launcher)) return new(true, false, "Pacchetto .deb aggiornato.", path);
+            var launch = LinuxRestartHandoff.CreateStartInfo(launcher, Environment.ProcessId, restartMinimized);
+            var restart = Process.Start(launch);
+            return new(true, restart is not null, "Pacchetto .deb aggiornato; riavvio richiesto.", path);
         }
-        catch (Exception ex)
+        catch (OperationCanceledException) { throw; }
+        catch (Exception error)
         {
-            return new LinuxUpdateApplyResult(
-                false,
-                false,
-                $"Impossibile sostituire AppImage: {ex.Message}",
-                downloadedPath);
+            progress?.Report(new(UpdateOperationStage.Failed, Message: error.Message));
+            return new(false, false, error.Message, path);
         }
     }
 
-    private async Task<LinuxUpdateApplyResult> ApplyDebAsync(
-        string downloadedPath)
+    private static LinuxInstallKind DetectInstallKind()
     {
-        if (!await _process.ExistsAsync("pkexec") ||
-            !await _process.ExistsAsync("apt-get"))
-        {
-            return new LinuxUpdateApplyResult(
-                true,
-                false,
-                $"Pacchetto .deb scaricato: {downloadedPath}",
-                downloadedPath);
-        }
-
-        var install =
-            await _process.RunAsync(
-                "pkexec",
-                new[]
-                {
-                    "apt-get",
-                    "install",
-                    "-y",
-                    downloadedPath
-                });
-
-        if (install.ExitCode != 0)
-        {
-            return new LinuxUpdateApplyResult(
-                false,
-                false,
-                string.IsNullOrWhiteSpace(install.StdErr)
-                    ? "Installazione .deb non riuscita."
-                    : install.StdErr,
-                downloadedPath);
-        }
-
-        var launcher = "/usr/bin/toastify-reloaded";
-
-        if (File.Exists(launcher))
-        {
-            Process.Start(
-                new ProcessStartInfo
-                {
-                    FileName = launcher,
-                    UseShellExecute = false
-                });
-
-            return new LinuxUpdateApplyResult(
-                true,
-                true,
-                "Pacchetto .deb aggiornato. Riavvio avviato.",
-                downloadedPath);
-        }
-
-        return new LinuxUpdateApplyResult(
-            true,
-            false,
-            "Pacchetto .deb aggiornato.",
-            downloadedPath);
+        var appImage = Environment.GetEnvironmentVariable("APPIMAGE");
+        if (!string.IsNullOrWhiteSpace(appImage) && File.Exists(appImage)) return LinuxInstallKind.AppImage;
+        return (Environment.ProcessPath ?? "").StartsWith("/opt/toastify-reloaded/", StringComparison.Ordinal)
+            ? LinuxInstallKind.Deb : LinuxInstallKind.Portable;
     }
 
-    private enum LinuxInstallKind
+    internal static LinuxUpdateAsset? SelectAsset(LinuxUpdateInfo update, LinuxInstallKind kind, Architecture architecture)
     {
-        Portable,
-        AppImage,
-        Deb
+        if (architecture is not (Architecture.X64 or Architecture.Arm64)) return null;
+        var arm = architecture == Architecture.Arm64;
+        var version = update.Version.Major + "." + update.Version.Minor + "." + update.Version.Patch;
+        var expected = kind switch
+        {
+            LinuxInstallKind.AppImage => "ToastifyReloaded-Linux-" + (arm ? "arm64" : "x64") + ".AppImage",
+            LinuxInstallKind.Deb => "toastify-reloaded_" + version + "_" + (arm ? "arm64" : "amd64") + ".deb",
+            _ => "ToastifyReloaded-Linux-" + (arm ? "arm64" : "x64") + ".tar.gz"
+        };
+        return update.Assets.SingleOrDefault(asset => asset.Name == expected);
     }
 }

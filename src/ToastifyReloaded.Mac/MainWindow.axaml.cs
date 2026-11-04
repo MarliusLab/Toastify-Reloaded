@@ -6,6 +6,7 @@ using Avalonia.Styling;
 using Avalonia.Threading;
 using ToastifyReloaded.Mac.Models;
 using ToastifyReloaded.Mac.Services;
+using ToastifyReloaded.Shared;
 
 namespace ToastifyReloaded.Mac;
 
@@ -17,6 +18,18 @@ public partial class MainWindow : Window
     private readonly LocalizationService _localization = new();
     private readonly MacUpdateService _updates = new();
     private readonly MacUpdateInstallerService _updateInstaller;
+    private readonly ToastShowHotkeyController _showToastHotkey = new();
+    private readonly ToastNavigationGate _toastNavigation = new();
+    private readonly List<ToastWindow> _toasts = new();
+    private readonly CancellationTokenSource _lifetime = new();
+    private CancellationTokenSource? _updateCancellation;
+    private int _visibleToastCount;
+    private bool _closed;
+    private bool _checkingUpdates;
+    private int _statusGeneration;
+    private volatile bool _canCancelUpdate;
+    private volatile bool _updateHandoffPending;
+    private bool _exitAfterUpdate;
 
     private readonly SpotifyAppleScriptService _spotify;
     private readonly MacGlobalHotkeyService _hotkeys;
@@ -39,7 +52,10 @@ public partial class MainWindow : Window
 
         _spotify = new SpotifyAppleScriptService(_processService);
         _updateInstaller = new MacUpdateInstallerService(_processService);
-        _hotkeys = new MacGlobalHotkeyService(_spotify);
+        _hotkeys = new MacGlobalHotkeyService(_spotify,
+            () => OnUiAsync(() => _showToastHotkey.ExecuteAsync(ShowCurrentToastFromHotkeyAsync)),
+            () => Volatile.Read(ref _visibleToastCount) > 0,
+            () => OnUiAsync(RequestVisibleNowPlayingAsync));
 
         _spicetify = new SpicetifyMacService(_processService);
         _spotifyVersion = new MacSpotifyVersionService(_processService);
@@ -59,20 +75,7 @@ public partial class MainWindow : Window
         ApplyApplicationTheme();
         ApplyLocalization();
 
-        await ApplyHotkeysAsync();
-
-        if (_settings.EnableCompatibilityGuard)
-            await RunCompatibilityGuardAsync(silent: true);
-
-        await RefreshStatusAsync();
-
-        if (_settings.AutoCheckMacUpdates)
-        {
-            _ = CheckUpdatesAsync(
-                silent: true,
-                installIfAvailable: _settings.AutoInstallMacUpdates);
-        }
-
+        var status = RefreshStatusAsync();
         _pollTimer = new DispatcherTimer
         {
             Interval = TimeSpan.FromSeconds(1)
@@ -80,6 +83,13 @@ public partial class MainWindow : Window
 
         _pollTimer.Tick += async (_, _) => await PollSpotifyAsync();
         _pollTimer.Start();
+
+        await ApplyHotkeysAsync();
+        var compatibility = _settings.EnableCompatibilityGuard
+            ? RunCompatibilityGuardAsync(silent: true) : Task.CompletedTask;
+        await Task.WhenAll(status, compatibility);
+        if (!_closed && _settings.AutoCheckMacUpdates)
+            _ = CheckUpdatesAsync(silent: true, installIfAvailable: _settings.AutoInstallMacUpdates && !UpdateSessionPolicy.SuppressAutomaticInstall);
     }
 
     protected override void OnClosing(WindowClosingEventArgs e)
@@ -91,8 +101,16 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (_updateHandoffPending)
+        {
+            _exitAfterUpdate = true;
+            e.Cancel = true;
+            return;
+        }
+
         _pollTimer?.Stop();
         _hotkeys.Dispose();
+        StopBackgroundWork();
 
         base.OnClosing(e);
     }
@@ -120,9 +138,11 @@ public partial class MainWindow : Window
 
     public void RequestExit()
     {
+        if (_updateHandoffPending) { _exitAfterUpdate = true; return; }
         _allowExit = true;
         _pollTimer?.Stop();
         _hotkeys.Dispose();
+        StopBackgroundWork();
 
         if (Application.Current?.ApplicationLifetime is
             Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
@@ -156,21 +176,81 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task ShowToastAsync(MacTrackInfo track)
+    private async Task ShowToastAsync(MacTrackInfo track, bool untilVisible = false)
     {
         try
         {
             var toast = new ToastWindow(
                 track,
                 _settings,
-                _artworkService);
-
-            await toast.ShowToastAsync();
+                _artworkService, _toastNavigation,
+                token => _hotkeys.RunNowPlayingSuspendedAsync(() => new SpotifyTrackOpenService(_processService).OpenNowPlayingAsync(token)),
+                _lifetime.Token);
+            if (_closed) return;
+            _toasts.Add(toast);
+            var shown = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var lease = _showToastHotkey.Attach(() => toast.CanHandleLyricsPlusRequest, toast.RequestLyricsPlusAsync);
+            toast.Opened += (_, _) => { UpdateVisibleToastCount(); shown.TrySetResult(); };
+            toast.PropertyChanged += (_, e) => { if (e.Property == IsVisibleProperty) UpdateVisibleToastCount(); };
+            toast.Closed += (_, _) => { lease.Dispose(); _toasts.Remove(toast); UpdateVisibleToastCount(); };
+            var lifetime = ObserveToastAsync(toast.ShowToastAsync(), () =>
+            {
+                lease.Dispose();
+                _toasts.Remove(toast);
+                UpdateVisibleToastCount();
+            });
+            if (untilVisible)
+            {
+                await Task.WhenAny(shown.Task, lifetime);
+                if (lifetime.IsCompleted) await lifetime;
+            }
+            else await lifetime;
         }
         catch
         {
             // A toast failure must never terminate the background application.
         }
+    }
+
+    private static async Task ObserveToastAsync(Task lifetime, Action cleanup)
+    {
+        try { await lifetime; }
+        catch { /* An asynchronous toast cannot terminate the tray app. */ }
+        finally { cleanup(); }
+    }
+
+    private async Task ShowCurrentToastFromHotkeyAsync()
+    {
+        var track = await _spotify.GetTrackAsync();
+        if (!_closed) await ShowToastAsync(track ?? new MacTrackInfo("Spotify", "", "", "", 0, 0, false), untilVisible: true);
+    }
+
+    private Task RequestVisibleNowPlayingAsync()
+        => _toasts.LastOrDefault(toast => toast.CanHandleLyricsPlusRequest)?.RequestNowPlayingAsync() ?? Task.CompletedTask;
+
+    private void UpdateVisibleToastCount()
+        => Volatile.Write(ref _visibleToastCount, _toasts.Count(toast => toast.CanHandleLyricsPlusRequest));
+
+    private Task OnUiAsync(Func<Task> action)
+    {
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        Dispatcher.UIThread.Post(async () =>
+        {
+            try { if (!_closed) await action(); completion.TrySetResult(); }
+            catch (Exception error) { completion.TrySetException(error); }
+        });
+        return completion.Task;
+    }
+
+    private void StopBackgroundWork()
+    {
+        if (_closed) return;
+        _closed = true;
+        _lifetime.Cancel();
+        if (_canCancelUpdate) _updateCancellation?.Cancel();
+        _showToastHotkey.Dispose();
+        _toastNavigation.Dispose();
+        foreach (var toast in _toasts.ToArray()) toast.Close();
     }
 
     private async void Save_Click(object? sender, RoutedEventArgs e)
@@ -330,9 +410,13 @@ public partial class MainWindow : Window
 
     private async Task CheckUpdatesAsync(bool silent, bool installIfAvailable)
     {
+        if (_checkingUpdates || _updateCancellation is not null || _closed) return;
+        _checkingUpdates = true;
+        Find<Button>("CheckUpdatesButton").IsEnabled = false;
         try
         {
-            _availableUpdate = await _updates.CheckAsync();
+            _availableUpdate = await _updates.CheckAsync(_lifetime.Token);
+            if (_closed) return;
 
             if (_availableUpdate is null)
             {
@@ -354,10 +438,16 @@ public partial class MainWindow : Window
             if (installIfAvailable)
                 await InstallAvailableUpdateAsync();
         }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
         catch (Exception ex)
         {
-            if (!silent)
+            if (!silent && !_closed)
                 Find<TextBlock>("UpdateStatusText").Text = ex.Message;
+        }
+        finally
+        {
+            _checkingUpdates = false;
+            if (!_closed) Find<Button>("CheckUpdatesButton").IsEnabled = true;
         }
     }
 
@@ -367,10 +457,20 @@ public partial class MainWindow : Window
 
     private async Task InstallAvailableUpdateAsync()
     {
-        if (_availableUpdate is null)
+        if (_availableUpdate is null || _updateCancellation is not null || _closed)
             return;
 
         Find<Button>("InstallUpdateButton").IsEnabled = false;
+        Find<Button>("CheckUpdatesButton").IsEnabled = false;
+        _updateCancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        _canCancelUpdate = true;
+        _updateHandoffPending = false;
+        var cancellation = _updateCancellation;
+        var bar = Find<ProgressBar>("UpdateProgressBar");
+        var cancel = Find<Button>("CancelUpdateButton");
+        bar.IsVisible = cancel.IsVisible = true;
+        bar.IsIndeterminate = true;
+        cancel.IsEnabled = true;
 
         try
         {
@@ -381,7 +481,11 @@ public partial class MainWindow : Window
 
             var result =
                 await _updateInstaller.DownloadAndApplyAsync(
-                    _availableUpdate);
+                    _availableUpdate, new UpdateProgressSink(ReceiveUpdateProgress), cancellation.Token);
+
+            _updateHandoffPending = false;
+
+            if (_closed) return;
 
             Find<TextBlock>("UpdateStatusText").Text =
                 result.Message;
@@ -392,16 +496,67 @@ public partial class MainWindow : Window
                 RequestExit();
             }
         }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+            if (!_closed) Find<TextBlock>("UpdateStatusText").Text = T("UpdateCanceled");
+        }
         catch (Exception ex)
         {
-            Find<TextBlock>("UpdateStatusText").Text =
-                ex.Message;
+            if (!_closed) Find<TextBlock>("UpdateStatusText").Text = ex.Message;
         }
         finally
         {
-            if (_availableUpdate is not null)
-                Find<Button>("InstallUpdateButton").IsEnabled = true;
+            _updateCancellation = null;
+            _canCancelUpdate = false;
+            _updateHandoffPending = false;
+            cancellation.Dispose();
+            if (!_closed)
+            {
+                bar.IsVisible = cancel.IsVisible = false;
+                Find<Button>("InstallUpdateButton").IsEnabled = _availableUpdate is not null;
+                Find<Button>("CheckUpdatesButton").IsEnabled = true;
+            }
+            if (_exitAfterUpdate && !_closed) RequestExit();
         }
+    }
+
+    private void CancelUpdate_Click(object? sender, RoutedEventArgs e)
+    { if (_canCancelUpdate) _updateCancellation?.Cancel(); }
+
+    private void ReceiveUpdateProgress(UpdateOperationProgress progress)
+    {
+        // State changes happen before dispatcher delivery: a queued button
+        // click cannot cancel or exit after a helper handoff has begun.
+        _canCancelUpdate = progress.Stage is UpdateOperationStage.Checking or UpdateOperationStage.Downloading or
+            UpdateOperationStage.Verifying or UpdateOperationStage.Preparing;
+        _updateHandoffPending = progress.Stage is UpdateOperationStage.WaitingForExit or
+            UpdateOperationStage.WaitingForPermission or UpdateOperationStage.Installing;
+        if (Dispatcher.UIThread.CheckAccess()) ReportUpdateProgress(progress);
+        else Dispatcher.UIThread.Post(() => ReportUpdateProgress(progress));
+    }
+
+    private sealed class UpdateProgressSink(Action<UpdateOperationProgress> report) : IProgress<UpdateOperationProgress>
+    { public void Report(UpdateOperationProgress value) => report(value); }
+
+    private void ReportUpdateProgress(UpdateOperationProgress progress)
+    {
+        if (_closed) return;
+        var bar = Find<ProgressBar>("UpdateProgressBar");
+        var downloading = progress.Stage == UpdateOperationStage.Downloading;
+        bar.IsIndeterminate = !downloading || progress.Percent is null;
+        if (progress.Percent is { } percent) bar.Value = percent;
+        Find<Button>("CancelUpdateButton").IsEnabled = progress.Stage is UpdateOperationStage.Checking or
+            UpdateOperationStage.Downloading or UpdateOperationStage.Verifying or UpdateOperationStage.Preparing;
+        var stage = progress.Stage switch
+        {
+            UpdateOperationStage.Downloading => T("UpdateDownloading"),
+            UpdateOperationStage.Verifying => T("UpdateVerifying"),
+            UpdateOperationStage.Cancelled => T("UpdateCanceled"),
+            _ => T("UpdateInstalling")
+        };
+        Find<TextBlock>("UpdateStatusText").Text = downloading
+            ? $"{stage}: {progress.ReceivedBytes:N0}" + (progress.TotalBytes is { } total ? $" / {total:N0} bytes ({progress.Percent:0}%)" : " bytes")
+            : progress.Message ?? stage;
     }
 
     private async void OpenLatestRelease_Click(object? sender, RoutedEventArgs e)
@@ -424,7 +579,9 @@ public partial class MainWindow : Window
         {
             _settings = ReadSettingsFromUi();
 
-            var result = await _compatibilityGuard.CheckAsync(_settings);
+            var result = await _compatibilityGuard.CheckAsync(_settings, _lifetime.Token);
+
+            if (_closed) return;
 
             await _settingsService.SaveAsync(_settings);
 
@@ -445,27 +602,57 @@ public partial class MainWindow : Window
 
     private async Task RefreshStatusAsync()
     {
-        var appleScriptAvailable = await _spotify.IsAvailableAsync();
-        var spotifyAvailable = appleScriptAvailable &&
-                               await _spotify.IsSpotifyAvailableAsync();
+        if (_closed) return;
+        var generation = ++_statusGeneration;
+        bool CanPublish() => !_closed && generation == _statusGeneration;
 
-        var spicetifyVersion = await _spicetify.GetVersionAsync();
-        var spotifyInstall = await _spotifyVersion.GetVersionAsync();
+        async Task<(bool Script, bool Spotify)> ProbeAutomationAsync()
+        {
+            bool script = false, spotify = false;
+            try
+            {
+                script = await _spotify.IsAvailableAsync();
+                if (CanPublish()) Find<TextBlock>("PlayerctlStatusText").Text = $"AppleScript / osascript: {(script ? "OK" : T("Missing"))}";
+                spotify = script && await _spotify.IsSpotifyAvailableAsync();
+            }
+            catch { }
+            if (CanPublish()) Find<TextBlock>("SpotifyStatusText").Text = $"Spotify Automation: {(spotify ? T("Detected") : T("NotDetected"))}";
+            return (script, spotify);
+        }
 
-        Find<TextBlock>("PlayerctlStatusText").Text =
-            $"AppleScript / osascript: {(appleScriptAvailable ? "OK" : T("Missing"))}";
+        async Task<string> ProbeSpicetifyAsync()
+        {
+            string version;
+            try { version = await _spicetify.GetVersionAsync(_lifetime.Token); }
+            catch { version = T("NotDetected"); }
+            if (CanPublish()) Find<TextBlock>("SpicetifyStatusText").Text = $"Spicetify: {version}";
+            return version;
+        }
 
-        Find<TextBlock>("SpotifyStatusText").Text =
-            $"Spotify Automation: {(spotifyAvailable ? T("Detected") : T("NotDetected"))}";
+        async Task<SpotifyInstallInfo?> ProbeSpotifyVersionAsync()
+        {
+            SpotifyInstallInfo? install = null;
+            try { install = await _spotifyVersion.GetVersionAsync(_lifetime.Token); }
+            catch { }
+            if (CanPublish()) Find<TextBlock>("SpotifyVersionText").Text = $"Spotify: {install?.Version ?? T("NotDetected")}";
+            return install;
+        }
+
+        // Launch independent probes before waiting for Automation or repair.
+        var automationTask = ProbeAutomationAsync();
+        var spicetifyTask = ProbeSpicetifyAsync();
+        var spotifyVersionTask = ProbeSpotifyVersionAsync();
+        await Task.WhenAll(automationTask, spicetifyTask, spotifyVersionTask);
+        if (!CanPublish()) return;
+        var (appleScriptAvailable, spotifyAvailable) = await automationTask;
+        var spicetifyVersion = await spicetifyTask;
+        var spotifyInstall = await spotifyVersionTask;
 
         var hotkeyPermission = !_settings.EnableGlobalHotkeys || _hotkeys.PermissionGranted;
         Find<TextBlock>("SessionStatusText").Text =
             _settings.EnableGlobalHotkeys
                 ? $"Accessibility hotkeys: {(hotkeyPermission ? T("Granted") : T("Required"))}"
                 : T("HotkeysDisabled");
-
-        Find<TextBlock>("SpicetifyStatusText").Text =
-            $"Spicetify: {spicetifyVersion}";
 
         var hotkeyText = _settings.EnableGlobalHotkeys
             ? (hotkeyPermission ? T("HotkeysReady") : T("AccessibilityRequired"))
@@ -547,6 +734,7 @@ public partial class MainWindow : Window
             SetText("MuteHotkeyBox", _settings.HotkeyMute);
             SetText("SeekForwardHotkeyBox", _settings.HotkeySeekForward);
             SetText("SeekBackwardHotkeyBox", _settings.HotkeySeekBackward);
+            SetText("ShowToastHotkeyBox", _settings.HotkeyShowToast);
 
             SetCheck("ShowToastCheck", _settings.ShowToastOnTrackChange);
             SetNumeric("ToastDisplayNumeric", _settings.ToastDisplayMs);
@@ -615,6 +803,7 @@ public partial class MainWindow : Window
             HotkeyMute = TextValue("MuteHotkeyBox"),
             HotkeySeekForward = TextValue("SeekForwardHotkeyBox"),
             HotkeySeekBackward = TextValue("SeekBackwardHotkeyBox"),
+            HotkeyShowToast = TextValue("ShowToastHotkeyBox"),
 
             ShowToastOnTrackChange = CheckValue("ShowToastCheck"),
             ToastDisplayMs = NumericValue("ToastDisplayNumeric", 3500),

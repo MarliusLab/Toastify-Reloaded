@@ -10,7 +10,15 @@ public sealed partial class MacSpotifyVersionService
     public MacSpotifyVersionService(ProcessService process)
         => _process = process;
 
-    public async Task<SpotifyInstallInfo?> GetVersionAsync()
+    public async Task<SpotifyInstallInfo?> GetVersionAsync(CancellationToken cancellationToken = default)
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, deadline.Token);
+        try { return await GetVersionCoreAsync(operation.Token).ConfigureAwait(false); }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return null; }
+    }
+
+    private async Task<SpotifyInstallInfo?> GetVersionCoreAsync(CancellationToken cancellationToken)
     {
         if (!OperatingSystem.IsMacOS())
             return null;
@@ -25,12 +33,13 @@ public sealed partial class MacSpotifyVersionService
             {
                 var result = await _process.RunAsync(
                     "/usr/libexec/PlistBuddy",
-                    new[] { "-c", "Print :CFBundleShortVersionString", plist });
+                    new[] { "-c", "Print :CFBundleShortVersionString", plist }, cancellationToken, TimeSpan.FromSeconds(3));
 
-                var version = ExtractVersion(result.StdOut + " " + result.StdErr);
+                var version = ExtractVersion(result.StdOut);
                 if (result.ExitCode == 0 && version is not null)
                     return new SpotifyInstallInfo(appPath, version);
             }
+            catch (OperationCanceledException) { throw; }
             catch
             {
             }

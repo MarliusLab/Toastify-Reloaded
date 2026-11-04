@@ -1,6 +1,44 @@
 # Implementation, releases and validation status
 
-## Published releases as of 2026-11-04
+## Three-platform update in preparation — 2026-11-04
+
+All user-facing Windows changes must also be implemented for Linux and macOS. Different operating-system backends and permission limits must be documented explicitly; a Windows-only build is not sufficient evidence for the other platforms.
+
+| Platform | Candidate in source | Publication state |
+|---|---|---|
+| Windows x64 / ARM64 | `v1.3.12` | In preparation; existing `v1.3.11` remains the published baseline |
+| Linux x64 / ARM64 | `v1.4.2-linux` | In preparation; existing `v1.4.1-linux` remains the published baseline |
+| macOS Intel / Apple Silicon | `v1.5.0-macos-rc.3` | In preparation; existing RC2 remains published; stable promotion is not implied |
+
+Linux/macOS candidates now request Lyrics Plus from the toast, title/artist and Enter/Space. The saved Show Toast shortcut displays a toast on its first press, requests Lyrics Plus while any toast is visible, and returns to showing a toast after all close. Its additive default is Ctrl+Alt+T; saved and empty assignments are retained. Shared navigation/lifetime guards handle overlapping toasts, cancellation and repeated input. Lyrics Plus uses a fixed route and safe Spotify-activation fallback without selecting or restarting a track.
+
+Alt+Shift+J remains a separate current-track action. Linux reads fresh MPRIS identity, temporarily owns the X11 global binding while a toast is visible and offers the action locally on Wayland; the approved global Wayland Show Toast shortcut still supports both presses. macOS waits for input release, activates Spotify and forwards its native Now Playing shortcut only after checking foreground/input state, with hook recursion guards. Permission/provider availability and actual Spotify behavior still need interactive acceptance.
+
+Both native candidates add independent Spotify/Spicetify version probes, process/network deadlines, stage/byte/percentage update progress, cancellation before handoff, and guarded exit/restart. Platform settings, media controls, themes, tray, import/export and startup features are retained.
+
+Velopack 1.2.161 now supplies architecture-specific native AppImage/Mac update packages and feeds. Linux 1.4.2 and macOS RC3 are the first full baselines: **13 Linux assets** and **11 macOS assets**, without invented legacy-to-Velopack deltas. A subsequent release can generate deltas from verified published full packages, and clients need a usable cached base; full download remains the fallback. Compatibility installation paths are retained for legacy packages. Existing tags/assets are not overwritten.
+
+The release pipeline stages only explicit validated files, rechecks hashes from tested artifacts, verifies the exact uploaded asset set and immutable full source SHA, then publishes the same upload's draft ID. This describes implemented guards, not a completed publication.
+
+### Candidate checks actually executed on the development host
+
+| Check | Environment | Result and limit |
+|---|---|---|
+| Windows regression suite | Windows x64, actual WPF and pinned native delta fixtures | PASS, 324 checks; no installed-client update or elevation |
+| Shared track/maintenance suite | Windows x64, real SDK with isolated synthetic feeds/packages | PASS, 203 checks; two Linux process-handoff checks SKIP on Windows |
+| Linux Release build | Windows x64, .NET 8 target | PASS, 0 errors / 4 existing warnings; native desktop execution still separate |
+| Manual Setup parser / migration | Windows x64, native NSIS user-mode parser and synthetic migration operations | PASS, 7 parser cases and 37 migration checks; no MSI, registry writes or real installation |
+| Release guard / Windows feed / recovery | Windows Python with local fixtures | PASS, 27 / 17 / 10 tests; private upload and immutable tag contracts |
+| macOS Release build | Windows x64, .NET 8 target | PASS, 0 errors / 3 existing warnings; cross-platform compilation only |
+| macOS isolated headless self-test | Windows x64, .NET runtime 8.0.28 | PASS, 31 checks; native osascript explicitly SKIP |
+| Native feed/publication regression suite | Windows Python, local ZIP/feed fixtures and fake API | PASS, 18 tests; includes both architectures, full/delta sets, hashes, exact draft ID, provenance, bounded downloads and immutable tags |
+| Python compile and macOS packaging shell syntax | Development host | PASS; syntax checking does not execute native packaging |
+
+The self-test uses an ignored workspace temporary configuration; no installed Spotify interaction or application update was performed by these checks. The first default system-temp attempt was denied by the managed host's file-move permissions; the isolated workspace rerun passed.
+
+The updated Linux workflow requires **native x64 and ARM64** AppImage self-tests and virtual-X11 startup, replacing the older ARM64 cross-build-only gate. The macOS workflow requires the signed SDK updater/manifest inside each bundle, native signing preflight, native-architecture startup and ZIP/DMG/feed verification. These new native gates and release publication remain pending until linked successful runs are recorded. A virtual desktop smoke test does not establish real Spotify, native Wayland, permissions or updater acceptance.
+
+## Published baseline before this update
 
 | Platform | Published version/tag | Scope | Publication state |
 |---|---|---|---|
@@ -35,7 +73,7 @@ package-aware updates. The published stable release is real. This does not
 establish that every desktop environment, Spotify package or architecture has
 passed an interactive test.
 
-## Changes after that baseline
+## Historical changes after the original audit baseline
 
 - Linux and macOS title and artist links open the track represented by the
   displayed metadata snapshot. Identity comes from Spotify/MPRIS metadata,
@@ -72,6 +110,7 @@ Shared regression harness, on any supported .NET SDK host:
 ```sh
 dotnet run --project tests/ToastifyReloaded.TrackLink.Tests -c Release
 python3 scripts/validate-macos-parity.py
+python3 scripts/test-portable-release.py
 ```
 
 Linux x64, with the dependencies listed in [LINUX.md](LINUX.md):
@@ -90,13 +129,16 @@ macOS, after producing app bundles for both architectures:
 ./scripts/build-macos.sh osx-arm64
 ./scripts/package-macos-app.sh osx-x64
 ./scripts/package-macos-app.sh osx-arm64
+./scripts/package-macos-velopack.sh osx-x64
+./scripts/package-macos-velopack.sh osx-arm64
 ./scripts/test-macos-gui.sh
 ```
 
 Build workflows additionally create and inspect Linux tar/DEB/AppImage and
-macOS ZIP/DMG artifacts. Linux ARM64 remains cross-built with ELF and package
-checks; the workflow does not run the ARM64 app. macOS startup is exercised
-only for the runner's native architecture; both architectures are published
+macOS ZIP/DMG artifacts. The candidate workflow builds and executes Linux ARM64
+AppImage self-test/startup on a native ARM64 runner; its result remains pending.
+macOS startup is exercised
+only for the runner's native architecture; both architectures are packaged
 and inspected. A Windows build or headless self-test cannot replace these
 native checks.
 
@@ -104,24 +146,26 @@ native checks.
 
 Linux:
 
-- Test with a signed-in Spotify client: click title and artist, change songs,
-  pause, skip, and check that the displayed song opens. Test Spotify closed,
-  missing URI handler, local files, and temporarily missing metadata.
+- Test with a signed-in Spotify client: toast/title/artist clicks and both Show
+  Toast presses should open Lyrics Plus without interrupting playback. Test
+  Alt+Shift+J after track changes and with local/missing identifiers. Cover
+  Spotify closed, absent Lyrics Plus/provider and missing URI handlers.
 - Confirm X11 shortcuts and native Wayland portal permission/shortcut
   behavior in the desktop environments being supported. Virtual X11 smoke
   testing does not exercise native Wayland.
 - Verify tray visibility, monitors, scaling, themes, timeline seeking and
   artwork in a real desktop session.
-- Verify Spicetify/Lyrics repair and update application on real AppImage,
-  DEB and portable installations; portable updates intentionally leave the
-  downloaded package for manual installation.
-- Run the app natively on Linux ARM64 before claiming native ARM64 runtime
-  validation.
+- Verify Spicetify/Lyrics repair and update progress/cancellation/application on
+  real managed/legacy AppImage, DEB and tar installations, including full
+  fallback and settings preservation. Tar transitions retain manual download.
+- Record the new native ARM64 CI result separately from interactive ARM64
+  desktop acceptance; neither has been established by a Windows host build.
 
 macOS, before promotion toward stable:
 
 - On real Intel and Apple Silicon Macs, confirm Spotify Automation
-  permission, metadata, transport controls and the title/artist links.
+  permission, metadata, transport controls, Lyrics Plus clicks/two presses and
+  scoped Alt+Shift+J during uninterrupted playback.
 - Confirm Accessibility permission and global shortcuts; inspect toast
   appearance, artwork, progress, seeking, animation and multiple monitors.
 - Exercise Spicetify/Lyrics repair and Compatibility Guard with installed

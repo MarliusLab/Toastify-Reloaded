@@ -14,10 +14,13 @@ try {
     Import-Module (Join-Path $PSScriptRoot 'WindowsPackageMigration.psm1') -Force
     $result = Invoke-ToastifyPackageMigration -InstallRoot $InstallRoot -MsiPath $MsiPath -PackagePath $PackagePath -Version $Version -Runtime $Runtime -MsiSha256 $MsiSha256 -PackageSha256 $PackageSha256
     Add-Type -Path (Join-Path $PSScriptRoot 'WindowsDesktopUserLauncher.cs')
-    if (-not [ToastifyPackaging.DesktopUserLauncher]::TryStart($result.ExePath, ($RestartMinimized -eq '1'))) {
+    $launchDiagnostic = ''
+    if (-not [ToastifyPackaging.DesktopUserLauncher]::TryStart($result.ExePath, ($RestartMinimized -eq '1'), [ref]$launchDiagnostic)) {
+        Write-Warning "Avvio dell'app non riuscito: $launchDiagnostic"
         Write-Output 'Installazione completata. Riapri Toastify Reloaded dal menu Start.'
         exit 10 # Successful install; never fall back to an elevated application.
     }
+    Write-Output $launchDiagnostic
     exit 0
 } catch {
     Write-Error -ErrorRecord $_ -ErrorAction Continue

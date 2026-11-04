@@ -27,7 +27,7 @@ public static class LinuxSelfTestService
         try
         {
             Console.WriteLine(
-                "Toastify Reloaded Linux 1.4.1 self-test");
+                "Toastify Reloaded Linux 1.4.2 self-test");
 
             Console.WriteLine(
                 $"Runtime: {Environment.Version}");
@@ -37,7 +37,7 @@ public static class LinuxSelfTestService
 
             Check(
                 LinuxUpdateService.CurrentTag ==
-                "v1.4.1-linux",
+                "v1.4.2-linux",
                 "stable version constant");
 
             var preview4 =
@@ -65,19 +65,19 @@ public static class LinuxSelfTestService
                     "v1.4.1-linux");
 
             Check(
-                LinuxUpdateService.CurrentVersion == nextStable &&
+                LinuxUpdateService.CurrentVersion == LinuxUpdateService.ParseTag("v1.4.2-linux") &&
                 stable is not null &&
                 LinuxUpdateService.IsEligibleUpdateCandidate(stable, LinuxUpdateService.CurrentVersion),
-                "1.4.0 stable upgrades to the current 1.4.1 patch release");
+                "1.4.0 stable upgrades to the current 1.4.2 patch release");
 
-            var futureStable = LinuxUpdateService.ParseTag("v1.4.2-linux");
-            var futurePreview = LinuxUpdateService.ParseTag("v1.4.2-linux-preview.1");
+            var futureStable = LinuxUpdateService.ParseTag("v1.4.3-linux");
+            var futurePreview = LinuxUpdateService.ParseTag("v1.4.3-linux-preview.1");
             Check(
                 futureStable is not null && futurePreview is not null &&
                 !LinuxUpdateService.IsEligibleUpdateCandidate(LinuxUpdateService.CurrentVersion, LinuxUpdateService.CurrentVersion) &&
                 LinuxUpdateService.IsEligibleUpdateCandidate(LinuxUpdateService.CurrentVersion, futureStable) &&
                 !LinuxUpdateService.IsEligibleUpdateCandidate(LinuxUpdateService.CurrentVersion, futurePreview),
-                "1.4.1 rejects itself and future previews while accepting later stable patches");
+                "1.4.2 rejects itself and future previews while accepting later stable patches");
 
             Check(
                 preview4 is not null &&
@@ -199,6 +199,24 @@ public static class LinuxSelfTestService
                 reloaded.ToastPosition == "TopLeft" &&
                 reloaded.AutoInstallLinuxUpdates,
                 "settings save/load roundtrip");
+
+            Check(reloaded.HotkeyShowToast == "Ctrl+Alt+T", "additive Show Toast default survives settings roundtrip");
+            var scopedSettings = new LinuxSettings { HotkeyNext = "Shift+Alt+J" };
+            var originalBindings = XbindkeysService.BuildConfig(scopedSettings);
+            var scopedBindings = XbindkeysService.BuildConfig(scopedSettings, toastNavigationActive: true);
+            Check(!originalBindings.Contains("Control.OpenCurrentTrack") && scopedBindings.Contains("Control.OpenCurrentTrack") &&
+                  !scopedBindings.Contains("playerctl --player=spotify next"),
+                "temporary X11 navigation replaces only a matching saved chord while a toast is visible");
+            Check(XbindkeysService.BuildConfig(scopedSettings) == originalBindings && scopedSettings.HotkeyNext == "Shift+Alt+J",
+                "last-toast scope release restores original bindings without editing settings");
+            var launchTargets = new List<string>();
+            var lyricsOpener = new SpotifyTrackOpenService((file, args, token) =>
+            {
+                launchTargets.Add(file + " " + string.Join(" ", args));
+                return Task.FromResult((0, "", ""));
+            }, _ => Task.FromResult<string?>(null));
+            Check(await lyricsOpener.OpenLyricsPlusAsync() == SpotifyTrackOpenResult.LyricsPlusRequested &&
+                launchTargets.SequenceEqual(new[] { "xdg-open spotify:app:lyrics-plus" }), "Lyrics Plus fixed URI without playback commands");
 
             await using var exportStream =
                 new MemoryStream();

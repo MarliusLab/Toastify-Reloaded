@@ -140,6 +140,7 @@ public sealed class LinuxSettingsService
         settings.HotkeyMute ??= "";
         settings.HotkeySeekForward ??= "";
         settings.HotkeySeekBackward ??= "";
+        settings.HotkeyShowToast ??= "Ctrl+Alt+T";
         settings.LastSpotifyVersion ??= "";
         settings.LastRepairAttemptVersion ??= "";
 

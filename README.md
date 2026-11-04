@@ -34,6 +34,8 @@ The project keeps the recognizable Toastify workflow and notification style whil
 
 These releases are published in [GitHub Releases](https://github.com/MarliusLab/Toastify-Reloaded/releases), with platform packages, release notes and SHA-256 checksums. Windows and Linux are stable; macOS RC2 remains a prerelease. Existing tags are preserved.
 
+**In preparation: Windows 1.3.12, Linux 1.4.2 and macOS RC3.** The update brings Lyrics Plus toast clicks and the saved Show Toast shortcut's two-press behavior to Linux and macOS, independent Spotify/Spicetify version discovery, cancellable update progress, and native Velopack package feeds. Windows fixes the compatibility Setup closing before displaying its wizard when started without optional update arguments. A restarted updater session no longer immediately retries an automatic installation after a failed or cancelled handoff; manual retry stays available. All three native builds must pass on the same source commit before publication. See [cross-platform behavior and limits](docs/CROSS_PLATFORM_PARITY.md); the published versions above remain current until that gate succeeds.
+
 > **[Windows 1.3.11 is published](https://github.com/MarliusLab/Toastify-Reloaded/releases/tag/v1.3.11).** Toast clicks request Lyrics Plus for Spotify's current song. The configured Show Toast shortcut first shows the toast, then opens Lyrics Plus while any toast is visible; after expiration/hide it shows a toast again. **Alt+Shift+J retains Go to Now Playing**. Lyrics Plus must already be enabled and applied. See [Windows toast behavior](docs/WINDOWS_TOAST.md).
 
 

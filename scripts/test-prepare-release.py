@@ -16,13 +16,14 @@ def event():
     return {"repository": {"full_name": REPO}, "workflow_run": {
         "conclusion": "success", "status": "completed", "event": "push",
         "head_branch": "main", "head_sha": SHA, "name": "Linux Build",
+        "path": ".github/workflows/linux-build.yml",
         "head_repository": {"full_name": REPO}}}
 
 
 class ReleaseGuardTests(unittest.TestCase):
     def test_all_prepared_versions_have_source_and_notes(self):
-        expected = {"windows": ("v1.3.11", "false"), "linux": ("v1.4.1-linux", "false"),
-                    "macos": ("v1.5.0-macos-rc.2", "true")}
+        expected = {"windows": ("v1.3.12", "false"), "linux": ("v1.4.2-linux", "false"),
+                    "macos": ("v1.5.0-macos-rc.3", "true")}
         for platform, (tag, prerelease) in expected.items():
             with self.subTest(platform=platform):
                 plan = guard.validate_plan(ROOT, platform)
@@ -31,6 +32,13 @@ class ReleaseGuardTests(unittest.TestCase):
 
     def test_successful_main_push_is_allowed(self):
         guard.validate_event("linux", "workflow_run", event(), REPO, "main", SHA)
+
+    def test_any_trusted_platform_completion_may_trigger_each_release_guard(self):
+        for name, path in guard.BUILD_WORKFLOWS.values():
+            for platform in guard.PLATFORMS:
+                data = event()
+                data["workflow_run"].update(name=name, path=path)
+                guard.validate_event(platform, "workflow_run", data, REPO, "main", SHA)
 
     def test_untrusted_or_failed_runs_are_rejected(self):
         for key, value in (("conclusion", "failure"), ("status", "in_progress"),
@@ -89,6 +97,92 @@ class ReleaseGuardTests(unittest.TestCase):
             self.assertIn(f"releases.{rid}.json", assets)
             self.assertIn(f"RELEASES-{rid}", assets)
         self.assertFalse(any("delta" in name for name in assets))
+
+    def test_native_unix_asset_contracts_start_at_explicit_baselines(self):
+        self.assertEqual(len(guard.expected_assets("v1.4.1-linux")), 6)
+        self.assertEqual(len(guard.expected_assets("v1.5.0-macos-rc.2")), 5)
+        linux = guard.expected_assets("v1.4.2-linux")
+        mac = guard.expected_assets("v1.5.0-macos-rc.3")
+        self.assertEqual(len(linux), 13)
+        self.assertEqual(len(mac), 11)
+        self.assertIn("ToastifyReloaded-Linux-arm64.AppImage", linux)
+        for rid in ("linux-x64", "linux-arm64"):
+            self.assertIn(f"ToastifyReloadedLinux-1.4.2-{rid}-full.nupkg", linux)
+            self.assertIn(f"releases.{rid}.json", linux)
+            self.assertIn(f"RELEASES-{rid}", linux)
+        for rid in ("osx-x64", "osx-arm64"):
+            self.assertIn(f"ToastifyReloadedMac-1.5.0-rc.3-{rid}-full.nupkg", mac)
+        self.assertFalse(any("-delta.nupkg" in name for name in linux | mac))
+        self.assertEqual(len(guard.expected_assets("v1.5.0-macos")), 11)
+        self.assertEqual(len(guard.expected_assets("v1.5.1-macos-preview.1")), 11)
+
+    @staticmethod
+    def build(platform, identifier):
+        name, path = guard.BUILD_WORKFLOWS[platform]
+        return {"id": identifier, "name": name, "path": path, "head_sha": SHA, "head_branch": "main",
+                "event": "push", "status": "completed", "conclusion": "success",
+                "repository": {"full_name": REPO}, "head_repository": {"full_name": REPO}}
+
+    def test_all_three_same_source_builds_are_required_and_output_artifact_run_ids(self):
+        builds = [self.build(platform, index) for index, platform in enumerate(guard.BUILD_WORKFLOWS, 100)]
+        result = guard.trusted_builds(REPO, SHA, lambda _: {"workflow_runs": builds})
+        self.assertTrue(result["ready"])
+        self.assertEqual(result["windows_build_run"], "100")
+        self.assertEqual(result["linux_build_run"], "101")
+        self.assertEqual(result["macos_build_run"], "102")
+
+    def test_joint_success_still_requires_an_immutable_tag_target(self):
+        builds = [self.build(platform, index) for index, platform in enumerate(guard.BUILD_WORKFLOWS, 100)]
+        for target in (None, SHA, "2" * 40):
+            def api(path):
+                if "/actions/runs?" in path: return {"workflow_runs": builds}
+                if "/git/ref/" in path and target: return {"object": {"type": "commit", "sha": target}}
+                return None
+            with self.subTest(target=target):
+                if target and target != SHA:
+                    with self.assertRaises(ValueError):
+                        guard.release_eligibility(REPO, "v1.3.12", SHA, "workflow_run", api)
+                else:
+                    result = guard.release_eligibility(REPO, "v1.3.12", SHA, "workflow_run", api)
+                    self.assertEqual(result["publish"], "true")
+                    self.assertEqual(result["windows_build_run"], "100")
+
+    def test_missing_pending_or_failed_builds_never_reach_publication_tag_checks(self):
+        for status, conclusion in (("in_progress", None), ("queued", None), ("completed", "failure"), ("completed", "cancelled")):
+            builds = [self.build(platform, index) for index, platform in enumerate(guard.BUILD_WORKFLOWS, 100)]
+            builds[-1].update(status=status, conclusion=conclusion)
+            def api(path):
+                self.assertIn("/actions/runs?", path)
+                return {"workflow_runs": builds}
+            with self.subTest(status=status, conclusion=conclusion):
+                result = guard.release_eligibility(REPO, "v1.3.12", SHA, "workflow_run", api)
+                self.assertEqual(result["publish"], "false")
+        self.assertFalse(guard.trusted_builds(REPO, SHA, lambda _: {"workflow_runs": builds[:2]})["ready"])
+
+    def test_spoofed_or_wrong_source_builds_cannot_satisfy_the_joint_gate(self):
+        for key, value in (("path", "untrusted.yml"), ("name", "other"), ("head_sha", "2" * 40),
+                           ("head_branch", "feature"), ("event", "pull_request"),
+                           ("repository", {"full_name": "other/repo"}),
+                           ("head_repository", {"full_name": "other/fork"}), ("id", "123")):
+            builds = [self.build(platform, index) for index, platform in enumerate(guard.BUILD_WORKFLOWS, 100)]
+            builds[0][key] = value
+            with self.subTest(key=key):
+                self.assertFalse(guard.trusted_builds(REPO, SHA, lambda _: {"workflow_runs": builds})["ready"])
+
+    def test_newer_failed_push_blocks_an_older_success_of_the_same_workflow(self):
+        builds = [self.build(platform, index) for index, platform in enumerate(guard.BUILD_WORKFLOWS, 100)]
+        builds.append(dict(self.build("windows", 999), conclusion="failure"))
+        self.assertFalse(guard.trusted_builds(REPO, SHA, lambda _: {"workflow_runs": builds})["ready"])
+        builds[-1].update(conclusion="success")
+        result = guard.trusted_builds(REPO, SHA, lambda _: {"workflow_runs": builds})
+        self.assertTrue(result["ready"])
+        self.assertEqual(result["windows_build_run"], "999")
+
+    def test_joint_gate_paginates_without_accepting_unrelated_runs(self):
+        def api(path):
+            if path.endswith("&page=1"): return {"workflow_runs": [{"name": "other"}] * 100}
+            return {"workflow_runs": [self.build(platform, index) for index, platform in enumerate(guard.BUILD_WORKFLOWS, 100)]}
+        self.assertTrue(guard.trusted_builds(REPO, SHA, api)["ready"])
 
     def test_incomplete_release_can_only_resume_at_original_source(self):
         for target in (SHA, "2" * 40):

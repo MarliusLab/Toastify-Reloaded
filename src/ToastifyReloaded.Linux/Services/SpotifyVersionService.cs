@@ -10,60 +10,71 @@ public sealed partial class SpotifyVersionService
     public SpotifyVersionService(ProcessService process)
         => _process = process;
 
-    public async Task<SpotifyInstallInfo?> GetVersionAsync()
+    public async Task<SpotifyInstallInfo?> GetVersionAsync(CancellationToken cancellationToken = default)
     {
-        if (await _process.ExistsAsync("spotify"))
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, deadline.Token);
+        try { return await GetVersionCoreAsync(operation.Token).ConfigureAwait(false); }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return null; }
+    }
+
+    private async Task<SpotifyInstallInfo?> GetVersionCoreAsync(CancellationToken cancellationToken)
+    {
+        if (await _process.ExistsAsync("spotify", cancellationToken))
         {
             try
             {
-                var result = await _process.RunAsync("spotify", new[] { "--version" });
-                var version = ExtractVersion(result.StdOut + " " + result.StdErr);
+                var result = await _process.RunAsync("spotify", new[] { "--version" }, cancellationToken, TimeSpan.FromSeconds(3));
+                var version = ExtractVersion(result.StdOut);
                 if (result.ExitCode == 0 && version is not null)
                     return new SpotifyInstallInfo("native", version);
             }
+            catch (OperationCanceledException) { throw; }
             catch
             {
                 // Continue with package-manager detection.
             }
         }
 
-        if (await _process.ExistsAsync("flatpak"))
+        if (await _process.ExistsAsync("flatpak", cancellationToken))
         {
             try
             {
                 var result = await _process.RunAsync(
                     "flatpak",
-                    new[] { "info", "--show-version", "com.spotify.Client" });
+                    new[] { "info", "--show-version", "com.spotify.Client" }, cancellationToken, TimeSpan.FromSeconds(3));
 
                 if (result.ExitCode == 0 && !string.IsNullOrWhiteSpace(result.StdOut))
                     return new SpotifyInstallInfo("flatpak", result.StdOut.Trim());
             }
+            catch (OperationCanceledException) { throw; }
             catch
             {
             }
         }
 
-        if (await _process.ExistsAsync("dpkg-query"))
+        if (await _process.ExistsAsync("dpkg-query", cancellationToken))
         {
             try
             {
                 var result = await _process.RunAsync(
                     "dpkg-query",
-                    new[] { "-W", "-f=${Version}", "spotify-client" });
+                    new[] { "-W", "-f=${Version}", "spotify-client" }, cancellationToken, TimeSpan.FromSeconds(3));
 
                 if (result.ExitCode == 0 && !string.IsNullOrWhiteSpace(result.StdOut))
                     return new SpotifyInstallInfo("deb", result.StdOut.Trim());
             }
+            catch (OperationCanceledException) { throw; }
             catch
             {
             }
         }
 
-        if (await _process.ExistsAsync("snap"))
+        if (await _process.ExistsAsync("snap", cancellationToken))
         {
             try
             {
-                var result = await _process.RunAsync("snap", new[] { "list", "spotify" });
+                var result = await _process.RunAsync("snap", new[] { "list", "spotify" }, cancellationToken, TimeSpan.FromSeconds(3));
                 if (result.ExitCode == 0)
                 {
                     var lines = result.StdOut.Split(
@@ -79,6 +90,7 @@ public sealed partial class SpotifyVersionService
                     }
                 }
             }
+            catch (OperationCanceledException) { throw; }
             catch
             {
             }
